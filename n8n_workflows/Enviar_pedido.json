@@ -1,0 +1,328 @@
+{
+  "name": "Enviar_pedido",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enviar-pedido",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -368,
+        1216
+      ],
+      "id": "49a0d126-91c1-43be-89cd-201c7074718a",
+      "name": "Webhook",
+      "webhookId": "6cae4083-c42f-4322-ba74-8625b09403ed"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://order-api.saipos.com/order",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "content-type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFBhcnRuZXIiOiI0NzJkMjZhYzU0OGIwZTk3YjdjM2E0ZGZhYTMxZjlhNSIsImNyZWF0ZWQiOjE3NjA5ODExNjgwMjgsImlhdCI6MTc2MDk4MTE2OCwiZXhwIjoxNzYxMTUzOTY4fQ.kPX7ooLGesv1YP6qLzHdAkqC_TPlhDh5AdEpEe3mkco"
+            },
+            {
+              "name": "accept",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        544,
+        1216
+      ],
+      "id": "5781eed6-c595-449f-a637-cb48214601d7",
+      "name": "Enviar_pedido_Saipos"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT public.upsert_delivery_batch('{{ JSON.stringify([$json]) }}'::jsonb);",
+        "options": {
+          "queryReplacement": "={{ JSON.stringify([$json]) }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        928,
+        1216
+      ],
+      "id": "f83c929b-997d-45aa-9782-34445fc5dc80",
+      "name": "Salva_pedido_banco",
+      "credentials": {
+        "postgres": {
+          "id": "1cdCAPhSbgI7pwdT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        736,
+        1216
+      ],
+      "id": "e291e237-df8b-439a-b6cf-7c2792321e5e",
+      "name": "Wait",
+      "webhookId": "c30fd220-812c-4b14-ab8d-e86475cdb5c6"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE public.active_sessions\nSET \n  status = 'finished',\n  updated_at = NOW()\nWHERE session_id = '{{ $json.customer.id || $json.session_id }}'\n  AND status = 'active';\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1136,
+        1216
+      ],
+      "id": "4364169f-1680-46b0-8c72-5e73799a9e9d",
+      "name": "active_sessions_finished",
+      "credentials": {
+        "postgres": {
+          "id": "1cdCAPhSbgI7pwdT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "ESTRUTURA DO PAYLOAD ENVIAR_PEDIDO\n\n{\n  \"session_id\": \"5547999999999\",\n  \"nome\": \"João Silva\",\n  \"telefone\": \"5547999999999\",\n  \"tipo_entrega\": \"entrega\",\n  \"rua\": \"Rua Exemplo\",\n  \"numero\": \"123\",\n  \"bairro\": \"Fazenda\",\n  \"cep\": \"88300-000\",\n  \"cidade\": \"Itajaí\",\n  \"complemento\": \"Apto 101, Bloco B\",\n  \"taxa_entrega\": 13.00,\n  \"itens\": [\n    {\n      \"pdv\": \"23137507\",\n      \"descricao\": \"X Egg\",\n      \"quantidade\": 1,\n      \"valor_unitario\": 31.00,\n      \"observacao\": \"sem tomate\",\n      \"adicionais\": [\n        {\n          \"pdv\": \"23137507.18691238\",\n          \"descricao\": \"Queijo Extra\",\n          \"valor_unitario\": 5.00,\n          \"quantidade\": 1\n        }\n      ]\n    }\n  ],\n  \"desconto\": 0,\n  \"pagamento\": \"pix\",\n  \"troco_para\": 0,\n  \"total\": 49.00\n}",
+        "height": 704,
+        "width": 464
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -992,
+        928
+      ],
+      "typeVersion": 1,
+      "id": "abb0dea4-389c-486b-93f4-e97a3184ff2d",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM v_menu_search_index;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -176,
+        1216
+      ],
+      "id": "901b57b7-33f7-4ff0-9ad5-fa892329b1c8",
+      "name": "Search Index",
+      "credentials": {
+        "postgres": {
+          "id": "1cdCAPhSbgI7pwdT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============================================================\n// 1. PREPARAÇÃO DOS DADOS\n// ============================================================\n\n// Recebe o pedido do nó Webhook\nconst pedidoOriginal = $('Webhook').first().json.body; \n\n// Recebe o índice de busca do banco\nconst indiceBanco = $('Search Index').all().map(i => i.json);\n\n// ============================================================\n// 2. FUNÇÕES AUXILIARES\n// ============================================================\n\nfunction gerarFingerprint(texto, isAdicional = false) {\n    if (!texto) return \"\";\n    let limpo = texto.toString().toLowerCase();\n    \n    // Remove acentos\n    limpo = limpo.normalize(\"NFD\").replace(/[\\u0300-\\u036f]/g, \"\");\n    \n    // Remove prefixos de adicionais\n    if (isAdicional) {\n        limpo = limpo.replace(/^(adicionais|adicional|opcionais|borda|acrescimo)\\s*[-–]?\\s*/i, \"\");\n    }\n    \n    // Mantém apenas letras e números\n    return limpo.replace(/[^a-z0-9]/g, \"\");\n}\n\n// ============================================================\n// 3. PROCESSAMENTO DE MATCH (CRUZAMENTO)\n// ============================================================\n\nconst itensMapeados = [];\nconst erros = [];\n\n// Filtra apenas produtos principais do banco para busca rápida\nconst produtosBanco = indiceBanco.filter(i => i.item_type === 'product');\n\nif (pedidoOriginal.itens && Array.isArray(pedidoOriginal.itens)) {\n    pedidoOriginal.itens.forEach((itemPedido, index) => {\n        const fpItemPedido = gerarFingerprint(itemPedido.nome, false);\n        \n        // --- BUSCA DO PAI (Lógica Aprimorada) ---\n        \n        // Tentativa 1: Match Exato de Fingerprint\n        let matchPai = produtosBanco.find(dbItem => dbItem.fingerprint === fpItemPedido);\n\n        // Tentativa 2: Match Parcial (Se o nome do banco estiver DENTRO do nome do pedido)\n        // Ex: Pedido \"xgalinhacombacon\" contém Banco \"xgalinha\"\n        if (!matchPai) {\n            // Ordena por tamanho do nome (para pegar o maior match possível primeiro, ex: \"X Galinha\" antes de \"X\")\n            const candidatos = produtosBanco.filter(dbItem => fpItemPedido.includes(dbItem.fingerprint));\n            if (candidatos.length > 0) {\n                // Pega o candidato com o nome mais longo que deu match (maior especificidade)\n                matchPai = candidatos.sort((a, b) => b.fingerprint.length - a.fingerprint.length)[0];\n            }\n        }\n\n        if (!matchPai) {\n            erros.push(`Produto não encontrado: \"${itemPedido.nome}\"`);\n            return; \n        }\n\n        // Cria o objeto do item\n        const itemFinal = {\n            pdv: matchPai.pdv,\n            descricao: matchPai.nome_original,\n            quantidade: parseFloat(itemPedido.quantidade || itemPedido.qtd || 1),\n            valor_unitario: parseFloat(matchPai.price),\n            observacao: itemPedido.observacoes || itemPedido.obs || \"\",\n            adicionais: []\n        };\n\n        // --- BUSCA DOS ADICIONAIS ---\n        if (itemPedido.adicionais && Array.isArray(itemPedido.adicionais)) {\n            itemPedido.adicionais.forEach(adPedido => {\n                const fpAd = gerarFingerprint(adPedido.nome, true);\n                \n                // Busca apenas nos filhos do pai encontrado\n                const matchFilho = indiceBanco.find(dbItem => \n                    dbItem.fingerprint === fpAd && \n                    dbItem.parent_pdv === matchPai.pdv\n                );\n\n                if (matchFilho) {\n                    itemFinal.adicionais.push({\n                        pdv: matchFilho.pdv,\n                        descricao: matchFilho.nome_original,\n                        quantidade: parseFloat(adPedido.quantidade || adPedido.qtd || 1),\n                        valor_unitario: parseFloat(matchFilho.price)\n                    });\n                }\n            });\n        }\n\n        itensMapeados.push(itemFinal);\n    });\n}\n\n// ============================================================\n// 4. MONTAGEM FINAL\n// ============================================================\n\nconst totalCalculado = itensMapeados.reduce((acc, item) => {\n    let itemTotal = item.valor_unitario * item.quantidade;\n    item.adicionais.forEach(ad => {\n        // Regra Saipos: (Valor Adicional * Qtd Adicional) * Qtd Pai\n        itemTotal += (ad.valor_unitario * ad.quantidade * item.quantidade);\n    });\n    return acc + itemTotal;\n}, 0) + (parseFloat(pedidoOriginal.taxa_entrega) || 0) - (parseFloat(pedidoOriginal.desconto) || 0);\n\n// Tratamento de Endereço\nlet rua = pedidoOriginal.endereco?.rua || \"\";\nlet numero = pedidoOriginal.endereco?.numero || \"\";\nlet bairro = pedidoOriginal.endereco?.bairro || \"\";\nlet complemento = pedidoOriginal.endereco?.complemento || \"\";\n\nif (typeof pedidoOriginal.endereco === 'string') {\n    const partes = pedidoOriginal.endereco.split(',').map(s => s.trim());\n    if (partes.length >= 1) rua = partes[0];\n    if (partes.length >= 2) numero = partes[1];\n    if (partes.length >= 3) bairro = partes[2];\n}\n\nconst payloadSaipos = {\n    session_id: pedidoOriginal.dados_cliente?.telefone || pedidoOriginal.telefone,\n    nome: pedidoOriginal.dados_cliente?.nome || pedidoOriginal.nome,\n    telefone: pedidoOriginal.dados_cliente?.telefone || pedidoOriginal.telefone,\n    tipo_entrega: pedidoOriginal.tipo_entrega,\n    rua: rua,\n    numero: numero,\n    bairro: bairro,\n    cep: pedidoOriginal.endereco?.cep || \"\",\n    cidade: \"Itajaí\",\n    complemento: complemento,\n    taxa_entrega: parseFloat(pedidoOriginal.taxa_entrega || 0),\n    desconto: parseFloat(pedidoOriginal.desconto || 0),\n    pagamento: pedidoOriginal.pagamento || \"cartao_credito\",\n    troco_para: parseFloat(pedidoOriginal.troco_para || 0),\n    total: parseFloat(totalCalculado.toFixed(2)),\n    itens: itensMapeados\n};\n\nreturn {\n    json: payloadSaipos,\n    erros_encontrados: erros.length > 0 ? erros : null\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        1216
+      ],
+      "id": "7c50fc56-1f4b-45e4-bd50-0818a0e4a5c6",
+      "name": "Match Fingerprint"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ========== DEBUG: Visualizar estrutura do input ==========\n// Descomente as linhas abaixo para ver o que está chegando\n// console.log(\"items completo:\", JSON.stringify(items, null, 2));\n// console.log(\"items[0]:\", JSON.stringify(items[0], null, 2));\n\n// Pega o JSON que vem do agente de IA\n// Testa diferentes estruturas possíveis\nlet data;\n\nif (items[0].json && Array.isArray(items[0].json)) {\n  // Se vier como array: items[0].json = [{...pedido...}]\n  data = items[0].json[0];\n} else if (items[0].json) {\n  // Se vier como objeto direto: items[0].json = {...pedido...}\n  data = items[0].json;\n} else {\n  throw new Error(\"Estrutura de dados não reconhecida. Verifique o input do nó anterior.\");\n}\n\n// Validação básica\nif (!data || !data.itens) {\n  throw new Error(\"JSON inválido: campo 'itens' não encontrado. Estrutura recebida: \" + JSON.stringify(data));\n}\n\n// ========== FUNÇÕES AUXILIARES ==========\nfunction parseArray(maybe, fallback = []) {\n  try {\n    if (Array.isArray(maybe)) return maybe;\n    if (typeof maybe === 'string' && maybe.trim()) return JSON.parse(maybe);\n    return fallback;\n  } catch { return fallback; }\n}\n\nfunction num(n, d = 0) {\n  if (typeof n === 'string') n = n.replace(',', '.');\n  const v = Number(n);\n  return Number.isFinite(v) ? v : d;\n}\n\nfunction toStr(v) {\n  return (v == null ? \"\" : String(v));\n}\n\n// ========== IDs E CONFIGURAÇÕES ==========\nconst orderId = `${Date.now()}${Math.floor(Math.random() * 1000)}`;\nconst displayId = \"5457\";\nconst codStore = \"MAR001\";\n\n// ========== PARSE ITENS E ADICIONAIS ==========\nconst itens = parseArray(data.itens);\n\nconst pedidosArray = itens.map(item => {\n  const adicionais = parseArray(item.adicionais);\n  \n  const choiceItems = adicionais.map(ad => {\n    // O PDV do adicional vem como \"23137416.17895817\"\n    // Precisamos pegar apenas a parte DEPOIS do ponto\n    const pdvCompleto = String(ad.pdv || \"\");\n    const integrationCode = pdvCompleto.includes(\".\") \n      ? pdvCompleto.split(\".\")[1].trim() \n      : pdvCompleto.trim();\n    \n    return {\n      integration_code: integrationCode,\n      desc_item_choice: ad.descricao || \"\",\n      aditional_price: num(ad.valor_unitario),\n      quantity: num(ad.quantidade, 1),\n      notes: \"\"\n    };\n  });\n  \n  return {\n    // Item principal (PDV sem o ponto)\n    integration_code: String(item.pdv || \"\").trim(),\n    desc_item: item.descricao || \"\",\n    quantity: num(item.quantidade, 1),\n    unit_price: num(item.valor_unitario),\n    notes: item.observacao || \"\",\n    choice_items: choiceItems\n  };\n});\n\n// ========== MAPEAMENTO DE PAGAMENTO ==========\nlet paymentCode = \"CARD\";\nconst pg = (data.pagamento || \"\").toLowerCase();\n\nif (pg.includes(\"din\") || pg.includes(\"dinheiro\")) {\n  paymentCode = \"DIN\";\n} else if (pg.includes(\"crédit\") || pg.includes(\"credit\") || pg.includes(\"cartao_credito\")) {\n  paymentCode = \"CRE\";\n} else if (pg.includes(\"déb\") || pg.includes(\"deb\") || pg.includes(\"cartao_debito\")) {\n  paymentCode = \"DEB\";\n} else if (pg.includes(\"vale\")) {\n  paymentCode = \"VALE\";\n} else if (pg.includes(\"pix\")) {\n  paymentCode = \"PARTNER_PAYMENT\";\n} else if (pg.includes(\"online\")) {\n  paymentCode = \"PARTNER_PAYMENT_ONLINE\";\n}\n\n// ========== ENTREGA OU RETIRADA ==========\nconst isTakeout = (data.tipo_entrega || \"\").toLowerCase() === \"retirada\";\n\nconst order_method = {\n  mode: isTakeout ? \"TAKEOUT\" : \"DELIVERY\",\n  scheduled: !isTakeout,\n  delivery_date_time: new Date().toISOString()\n};\n\nif (!isTakeout) {\n  order_method.delivery_by = \"RESTAURANT\";\n  order_method.delivery_fee = num(data.taxa_entrega);\n}\n\n// ========== FORMATAÇÃO DE TELEFONE ==========\n// Sempre como string no formato internacional (+55XXXXXXXXXXX)\nlet telefoneBruto = toStr(data.telefone || data.session_id || \"\");\n\n// Remove possíveis sufixos do WhatsApp (ex: @s.whatsapp.net)\nif (telefoneBruto.includes(\"@\")) {\n  telefoneBruto = telefoneBruto.split(\"@\")[0];\n}\n\n// Remove tudo que não for número\nlet telefoneFormatado = telefoneBruto.replace(/\\D+/g, \"\");\n\n// Remove zeros à esquerda\ntelefoneFormatado = telefoneFormatado.replace(/^0+/, \"\");\n\n// Garante prefixo do Brasil\nif (telefoneFormatado && !telefoneFormatado.startsWith(\"55\")) {\n  telefoneFormatado = \"55\" + telefoneFormatado;\n}\n\n// ========== DADOS DO CLIENTE ==========\nconst nomeCliente = (data.nome || \"Cliente\").trim();\nconst numeroRua = (data.numero || \"S/N\").trim();\n\n// ========== OBSERVAÇÕES DO PEDIDO ==========\nconst notesPedido = isTakeout && data.horario_retirada\n  ? `Pedido agendado para retirada às ${data.horario_retirada}`\n  : \"\";\n\n// ========== JSON FINAL SAIPOS ==========\nconst jsonSaipos = {\n  order_id: orderId,\n  display_id: displayId,\n  cod_store: codStore,\n  created_at: new Date().toISOString(),\n  notes: notesPedido,\n  total_increase: 0, // Acréscimos gerais (não é taxa de entrega)\n  total_discount: num(data.desconto),\n  total_amount: num(data.total),\n  customer: {\n    id: String(data.session_id || data.telefone || orderId),\n    name: nomeCliente,\n    phone: telefoneFormatado,\n    document_number: \"\"\n  },\n  order_method,\n  \n  // Endereço de entrega (só se NÃO for retirada)\n  ...(isTakeout ? {} : {\n    delivery_address: {\n      country: \"BR\",\n      state: \"SC\",\n      city: data.cidade || \"Itajaí\",\n      district: data.bairro || \"\",\n      street_name: data.rua || \"\",\n      street_number: numeroRua,\n      postal_code: (data.cep || \"\").replace(/\\D/g, \"\"),\n      reference: \"\",\n      complement: data.complemento || \"\",\n      coordinates: {\n        latitude: -26.9101,\n        longitude: -48.6705\n      }\n    }\n  }),\n  \n  items: pedidosArray,\n  \n  payment_types: [\n    {\n      code: paymentCode,\n      amount: num(data.total),\n      change_for: num(data.troco_para)\n    }\n  ]\n};\n\n// Retorna no formato que o n8n espera\nreturn [{ json: jsonSaipos }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        1216
+      ],
+      "id": "fd9921c4-bba0-41ae-8c12-b9ee43479319",
+      "name": "Formatar JSON Saipos"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "webhook.hub3ps.com",
+            "user-agent": "axios/1.12.0",
+            "content-length": "541",
+            "accept": "application/json,text/html,application/xhtml+xml,application/xml,text/*;q=0.9, image/*;q=0.8, */*;q=0.7",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1",
+            "cf-connecting-ip": "31.97.31.99",
+            "cf-ipcountry": "BR",
+            "cf-ray": "9bce20aa6b705285-GRU",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "content-type": "application/json",
+            "x-forwarded-for": "31.97.31.99, 172.71.239.91",
+            "x-forwarded-host": "webhook.hub3ps.com",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "62eb8f1e2f86",
+            "x-real-ip": "172.71.239.91"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "endereco": {
+              "bairro": "Centro",
+              "rua": "Rua Gil Stein Ferreira",
+              "cep": "88301-210",
+              "complemento": "",
+              "numero": "357"
+            },
+            "pagamento": "dinheiro",
+            "troco_para": 100,
+            "itens": [
+              {
+                "valor_unitario": 28,
+                "nome": "X Salada",
+                "adicionais": [],
+                "obs": "",
+                "qtd": 1
+              },
+              {
+                "qtd": 1,
+                "adicionais": [],
+                "obs": "",
+                "valor_unitario": 8,
+                "nome": "Coca Cola Zero Lata"
+              },
+              {
+                "adicionais": [],
+                "obs": "",
+                "qtd": 1,
+                "valor_unitario": 25,
+                "nome": "Batata Frita (1/4 Porção)"
+              }
+            ],
+            "tipo_entrega": "entrega",
+            "desconto": 0,
+            "taxa_entrega": 10,
+            "total": 71,
+            "dados_cliente": {
+              "telefone": "554797218396",
+              "nome": "Guilherme"
+            }
+          },
+          "webhookUrl": "https://webhook.hub3ps.com/webhook/enviar-pedido",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Search Index",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar_pedido_Saipos": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salva_pedido_banco": {
+      "main": [
+        [
+          {
+            "node": "active_sessions_finished",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Salva_pedido_banco",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search Index": {
+      "main": [
+        [
+          {
+            "node": "Match Fingerprint",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Fingerprint": {
+      "main": [
+        [
+          {
+            "node": "Formatar JSON Saipos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8ae2ea14-70fd-467e-bccb-95df8e04e95e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c995eb3d5aea63d581c202f759dfd9ba110a4403b853d8b9833748030d2160bd"
+  },
+  "id": "lXCs4Uwq5nn0h0pD",
+  "tags": []
+}

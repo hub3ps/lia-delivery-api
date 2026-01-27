@@ -1,0 +1,197 @@
+{
+  "name": "Gerar Embeddings Cardápio",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Buscar itens\nSELECT \n    item_id::text,\n    pdv,\n    display_name,\n    category,\n    price::numeric\nFROM v_menu_catalog \nWHERE active = true\nORDER BY category, display_name;",
+        "options": {}
+      },
+      "id": "6323229a-c2ec-450f-bcb5-c026cc4574af",
+      "name": "Supabase - Buscar Itens",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        320,
+        512
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "1cdCAPhSbgI7pwdT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "{{ $json.query }}",
+        "options": {}
+      },
+      "id": "dd39f683-68ee-45a3-a459-58c48547b2ff",
+      "name": "Supabase - Inserir",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        512
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "1cdCAPhSbgI7pwdT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "fde00433-a3f4-4be3-82e4-07c4710dadfd",
+      "name": "Loop Over Items1",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        544,
+        512
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        96,
+        512
+      ],
+      "id": "64d25dcc-39fa-444f-83f6-8802df1323ce",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"text-embedding-3-small\",\n  \"input\": \"={{ $json.display_name }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        768,
+        512
+      ],
+      "id": "544bb0c4-7a17-4334-85b3-106fde0cb2aa",
+      "name": "HTTP Request",
+      "credentials": {
+        "openAiApi": {
+          "id": "q8KPR3MWWibtUAoU",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $('Loop Over Items1').item.json;\nconst embedding = $json.data[0].embedding;\n\nconst escapeSql = (str) => str.replace(/'/g, \"''\");\n\nconst query = `\nINSERT INTO menu_embeddings \n(pdv, display_name, category, price, embedding)\nVALUES \n(\n  '${escapeSql(item.pdv)}',\n  '${escapeSql(item.display_name)}',\n  '${escapeSql(item.category)}',\n  ${item.price},\n  '[${embedding.join(',')}]'::vector\n)`;\n\nreturn { query };"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        512
+      ],
+      "id": "07a43228-7109-4636-b22a-6cca4a0fc13c",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {
+    "When clicking ‘Execute workflow’": [
+      {
+        "json": {}
+      }
+    ]
+  },
+  "connections": {
+    "Supabase - Buscar Itens": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase - Inserir": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Buscar Itens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Supabase - Inserir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7f66a208-a1da-44c0-b3c0-7d644d078476",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c995eb3d5aea63d581c202f759dfd9ba110a4403b853d8b9833748030d2160bd"
+  },
+  "id": "JZoVRURwZktCAEQz",
+  "tags": []
+}

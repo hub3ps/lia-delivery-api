@@ -1,0 +1,175 @@
+{
+  "name": "4. Cancelar_pedido",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cancelar_pedido",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        -16
+      ],
+      "id": "b33d1e3c-934b-4bd9-9b7a-632312017a13",
+      "name": "Webhook",
+      "webhookId": "7cfd6d10-ed62-4a7c-8194-e41a90112db4"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "__rl": true,
+          "mode": "list",
+          "value": "public"
+        },
+        "table": {
+          "__rl": true,
+          "value": "orders",
+          "mode": "list",
+          "cachedResultName": "orders"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "order_id",
+              "value": "={{ $json.body.order_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        32,
+        -16
+      ],
+      "id": "b0e779e2-f9bb-4136-ba17-74b5b8309f8d",
+      "name": "Postgres",
+      "credentials": {
+        "postgres": {
+          "id": "1cdCAPhSbgI7pwdT",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://order-api.saipos.com/cancel-order",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFBhcnRuZXIiOiIxYmM0Yzg2NWRlMTk1NDIxMjkxNWJiMGQzMjgzMzI4ZCIsImNyZWF0ZWQiOjE3NTU1NDM0NjE1MTMsImlhdCI6MTc1NTU0MzQ2MSwiZXhwIjoxNzU1NzE2MjYxfQ.tm0t4krNWv-xwsNK-6hnOZWO1PCLUtVp3cmrqwqaf5U"
+            },
+            {
+              "name": "accept",
+              "value": "application/json"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "cod_store",
+              "value": "123"
+            },
+            {
+              "name": "order_id",
+              "value": "=1755635138128"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -16
+      ],
+      "id": "43cf27e3-6f9f-4abc-aecd-d46b0290a7c1",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {
+    "Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "webhook.hub3ps.com",
+            "user-agent": "axios/1.8.3",
+            "content-length": "52",
+            "accept": "application/json,text/html,application/xhtml+xml,application/xml,text/*;q=0.9, image/*;q=0.8, */*;q=0.7",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1",
+            "cf-connecting-ip": "31.97.31.99",
+            "cf-ipcountry": "BR",
+            "cf-ray": "971c57d0daa1d494-CDG",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "content-type": "application/json",
+            "x-forwarded-for": "31.97.31.99, 172.68.151.34",
+            "x-forwarded-host": "webhook.hub3ps.com",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "2601521b10db",
+            "x-real-ip": "172.68.151.34"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "telefone": "4797218396",
+            "order_id": "1755634597194"
+          },
+          "webhookUrl": "https://webhook.hub3ps.com/webhook/cancelar_pedido",
+          "executionMode": "production"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Postgres",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "83dc5790-04b3-44b1-a610-8d855ccee37b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c995eb3d5aea63d581c202f759dfd9ba110a4403b853d8b9833748030d2160bd"
+  },
+  "id": "Fgl2rEbM3dYTtTES",
+  "tags": []
+}
