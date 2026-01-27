@@ -30,7 +30,7 @@
             },
             {
               "name": "Authorization",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFBhcnRuZXIiOiI0NzJkMjZhYzU0OGIwZTk3YjdjM2E0ZGZhYTMxZjlhNSIsImNyZWF0ZWQiOjE3NjA5ODExNjgwMjgsImlhdCI6MTc2MDk4MTE2OCwiZXhwIjoxNzYxMTUzOTY4fQ.kPX7ooLGesv1YP6qLzHdAkqC_TPlhDh5AdEpEe3mkco"
+              "value": "SAIPOS_TOKEN"
             },
             {
               "name": "accept",

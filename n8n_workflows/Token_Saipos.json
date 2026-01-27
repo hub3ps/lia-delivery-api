@@ -20,7 +20,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"idPartner\": \"472d26ac548b0e97b7c3a4dfaa31f9a5\",\n  \"secret\": \"b7e1ceaa4d3637b0e4b20df9ef792e3d\"\n}",
+        "jsonBody": "={\n  \"idPartner\": \"SAIPOS_PARTNER_ID\",\n  \"secret\": \"SAIPOS_PARTNER_SECRET\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

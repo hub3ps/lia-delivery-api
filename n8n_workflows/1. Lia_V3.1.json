@@ -1222,7 +1222,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "BE079E70E632-4EE7-8073-A32C924D5057"
+              "value": "EVOLUTION_API_KEY"
             }
           ]
         },
@@ -1249,7 +1249,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "BE079E70E632-4EE7-8073-A32C924D5057"
+              "value": "EVOLUTION_API_KEY"
             }
           ]
         },
@@ -1281,7 +1281,7 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "BE079E70E632-4EE7-8073-A32C924D5057"
+              "value": "EVOLUTION_API_KEY"
             }
           ]
         },
@@ -2079,7 +2079,7 @@
             "date_time": "2026-01-15T17:57:51.351Z",
             "sender": "554799879339@s.whatsapp.net",
             "server_url": "https://evo.hub3ps.com/",
-            "apikey": "BE079E70E632-4EE7-8073-A32C924D5057"
+            "apikey": "EVOLUTION_API_KEY"
           },
           "webhookUrl": "https://webhook.hub3ps.com/webhook/v3.1",
           "executionMode": "production"

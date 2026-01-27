@@ -9,7 +9,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZFBhcnRuZXIiOiI0NzJkMjZhYzU0OGIwZTk3YjdjM2E0ZGZhYTMxZjlhNSIsImNyZWF0ZWQiOjE3NjU5MDc5NjQ0NDksImlhdCI6MTc2NTkwNzk2NCwiZXhwIjoxNzY2MDgwNzY0fQ.mtyuz9t_vbgXce19Ai3T7A8_wLONdEgS4A9oDeKx0fU"
+              "value": "SAIPOS_TOKEN"
             },
             {
               "name": "accept",
