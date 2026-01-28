@@ -136,46 +136,53 @@ def _build_agent(db):
 
 
 def _process_message(info: Dict[str, Any]) -> None:
-    evolution = EvolutionClient(settings.evolution_base_url, settings.evolution_api_key)
+    try:
+        evolution = EvolutionClient(settings.evolution_base_url, settings.evolution_api_key)
 
-    with get_db() as db:
-        queue = process_queue(db, info["telefone"], info["id_mensagem"], settings.debounce_wait_seconds)
-        if not queue:
-            return
+        with get_db() as db:
+            queue = process_queue(db, info["telefone"], info["id_mensagem"], settings.debounce_wait_seconds)
+            if not queue:
+                return
 
-        # build content
-        content = ""
-        if info.get("message_type") == "audio":
-            resp = evolution.get_base64_from_media(info.get("instancia"), info.get("id_mensagem"), base_url=info.get("url_evolution"))
-            base64_data = resp.get("base64") or resp.get("data") or ""
-            if base64_data:
-                if "," in base64_data:
-                    base64_data = base64_data.split(",")[-1]
-                audio_bytes = base64.b64decode(base64_data)
-                agent = _build_agent(db)
-                content = agent.transcribe_audio(audio_bytes)
-        if not content:
-            content = concat_messages(queue) or info.get("mensagem") or ""
+            # build content
+            content = ""
+            if info.get("message_type") == "audio":
+                resp = evolution.get_base64_from_media(info.get("instancia"), info.get("id_mensagem"), base_url=info.get("url_evolution"))
+                base64_data = resp.get("base64") or resp.get("data") or ""
+                if base64_data:
+                    if "," in base64_data:
+                        base64_data = base64_data.split(",")[-1]
+                    audio_bytes = base64.b64decode(base64_data)
+                    agent = _build_agent(db)
+                    content = agent.transcribe_audio(audio_bytes)
+            if not content:
+                content = concat_messages(queue) or info.get("mensagem") or ""
 
-        historico = crud.fetch_client_snapshot(db, info.get("telefone")) or {}
+            try:
+                historico = crud.fetch_client_snapshot(db, info.get("telefone")) or {}
+            except Exception:
+                logger.warning("snapshot_fetch_failed", exc_info=True)
+                historico = {}
 
-        horario = ""
-        if info.get("timestamp"):
-            horario = format_horario(datetime.fromtimestamp(info["timestamp"], tz=timezone.utc), settings.timezone)
+            horario = ""
+            if info.get("timestamp"):
+                horario = format_horario(datetime.fromtimestamp(info["timestamp"], tz=timezone.utc), settings.timezone)
 
-        agent = _build_agent(db)
-        reply = agent.run(content, info.get("telefone"), horario, historico)
-        if reply is None:
-            reply = ""
+            agent = _build_agent(db)
+            reply = agent.run(content, info.get("telefone"), horario, historico)
+            if reply is None:
+                reply = ""
 
-        crud.clear_messages(db, info.get("telefone"))
+            crud.clear_messages(db, info.get("telefone"))
 
-        if reply.strip():
-            parts = split_messages(reply)
-            for part in parts:
-                evolution.send_text(info.get("instancia"), info.get("telefone"), part, base_url=info.get("url_evolution"))
+            if reply.strip():
+                parts = split_messages(reply)
+                for part in parts:
+                    evolution.send_text(info.get("instancia"), info.get("telefone"), part, base_url=info.get("url_evolution"))
 
-            crud.update_active_session_ai(db, info.get("telefone"), reply)
+                crud.update_active_session_ai(db, info.get("telefone"), reply)
+    except Exception:
+        logger.exception("background_process_failed")
 
 
 @router.post("/v3.1")

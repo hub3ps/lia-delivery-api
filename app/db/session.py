@@ -19,8 +19,12 @@ def _normalize_db_url(url: str) -> str:
     if url.startswith("http://") or url.startswith("https://"):
         # fallback for misconfigured DATABASE_URL in local envs
         return "postgresql+psycopg://postgres:postgres@localhost:5432/lia"
+    if url.startswith("postgresql+psycopg2://"):
+        return url.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
     if url.startswith("postgresql+asyncpg://"):
         return url.replace("postgresql+asyncpg://", "postgresql+psycopg://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql+psycopg://", 1)
     return url
 
 

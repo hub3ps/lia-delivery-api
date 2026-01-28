@@ -129,7 +129,7 @@ def fetch_client_snapshot(db, telefone: str) -> Optional[Dict[str, Any]]:
     sql = text(
         """
         WITH inp AS (
-          SELECT regexp_replace(:tel::text, '\\D', '', 'g') AS d
+          SELECT regexp_replace(CAST(:tel AS text), '\\D', '', 'g') AS d
         ),
         cand AS (
           SELECT d AS k FROM inp

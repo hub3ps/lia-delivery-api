@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
+import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -38,5 +38,8 @@ class FollowupService:
                     horario = ""
                 reply = agent.run_followup(last_message, telefone, horario, last_type)
                 if reply:
-                    self.evolution_client.send_text(settings.evolution_instance, telefone, reply)
-                    crud.mark_followup_sent(db, telefone, reply)
+                    try:
+                        self.evolution_client.send_text(settings.evolution_instance, telefone, reply)
+                        crud.mark_followup_sent(db, telefone, reply)
+                    except Exception:
+                        logging.getLogger(__name__).exception("followup_send_failed")
