@@ -323,8 +323,12 @@ def insert_chat_history(db, session_id: str, role: str, content: str) -> None:
     sql = text(
         """
         INSERT INTO public.n8n_historico_mensagens (session_id, message)
-        VALUES (:session_id, :message::jsonb)
+        VALUES (:session_id, CAST(:message AS jsonb))
         """
     )
-    db.execute(sql, {"session_id": session_id, "message": json.dumps(message)})
-    db.commit()
+    try:
+        db.execute(sql, {"session_id": session_id, "message": json.dumps(message)})
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise

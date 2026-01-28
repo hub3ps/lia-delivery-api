@@ -25,6 +25,9 @@ class DummyDB:
     def commit(self):
         return None
 
+    def rollback(self):
+        return None
+
 
 def test_fetch_client_snapshot_uses_text():
     db = DummyDB()
@@ -44,3 +47,4 @@ def test_insert_chat_history_uses_text():
     crud.insert_chat_history(db, "551199999999", "human", "oi")
     assert isinstance(db.sql, TextClause)
     assert "n8n_historico_mensagens" in str(db.sql)
+    assert "CAST(:message AS jsonb)" in str(db.sql)
