@@ -22,6 +22,9 @@ class DummyDB:
         self.params = params
         return DummyResult()
 
+    def commit(self):
+        return None
+
 
 def test_fetch_client_snapshot_uses_text():
     db = DummyDB()
@@ -34,3 +37,10 @@ def test_normalize_db_url():
     assert _normalize_db_url("postgresql+psycopg2://user:pass@host/db").startswith("postgresql+psycopg://")
     assert _normalize_db_url("postgresql+asyncpg://user:pass@host/db").startswith("postgresql+psycopg://")
     assert _normalize_db_url("postgres://user:pass@host/db").startswith("postgresql+psycopg://")
+
+
+def test_insert_chat_history_uses_text():
+    db = DummyDB()
+    crud.insert_chat_history(db, "551199999999", "human", "oi")
+    assert isinstance(db.sql, TextClause)
+    assert "n8n_historico_mensagens" in str(db.sql)

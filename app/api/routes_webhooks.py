@@ -168,6 +168,11 @@ def _process_message(info: Dict[str, Any]) -> None:
             if info.get("timestamp"):
                 horario = format_horario(datetime.fromtimestamp(info["timestamp"], tz=timezone.utc), settings.timezone)
 
+            try:
+                crud.insert_chat_history(db, info.get("telefone"), "human", content)
+            except Exception:
+                logger.warning("history_insert_failed", exc_info=True)
+
             agent = _build_agent(db)
             reply = agent.run(content, info.get("telefone"), horario, historico)
             if reply is None:
@@ -181,6 +186,10 @@ def _process_message(info: Dict[str, Any]) -> None:
                     evolution.send_text(info.get("instancia"), info.get("telefone"), part, base_url=info.get("url_evolution"))
 
                 crud.update_active_session_ai(db, info.get("telefone"), reply)
+                try:
+                    crud.insert_chat_history(db, info.get("telefone"), "ai", reply)
+                except Exception:
+                    logger.warning("history_insert_failed", exc_info=True)
     except Exception:
         logger.exception("background_process_failed")
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional
+import json
 
 from sqlalchemy import text
 
@@ -308,4 +309,22 @@ def mark_followup_sent(db, session_id: str, message: str) -> None:
         """
     )
     db.execute(sql, {"session_id": session_id, "message": message})
+    db.commit()
+
+
+def insert_chat_history(db, session_id: str, role: str, content: str) -> None:
+    message = {
+        "type": role,
+        "data": {
+            "content": content or "",
+            "additional_kwargs": {},
+        },
+    }
+    sql = text(
+        """
+        INSERT INTO public.n8n_historico_mensagens (session_id, message)
+        VALUES (:session_id, :message::jsonb)
+        """
+    )
+    db.execute(sql, {"session_id": session_id, "message": json.dumps(message)})
     db.commit()

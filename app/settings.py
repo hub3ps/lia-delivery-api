@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     followup_enabled: bool = Field(True, alias="FOLLOWUP_ENABLED")
 
     # Behavior toggles
-    debounce_wait_seconds: int = Field(2, alias="DEBOUNCE_WAIT_SECONDS")
+    debounce_wait_seconds: int = Field(10, alias="DEBOUNCE_WAIT_SECONDS")
 
 
 settings = Settings()
