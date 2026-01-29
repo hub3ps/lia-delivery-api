@@ -194,25 +194,50 @@ class OrderService:
         if not isinstance(data, dict):
             return {"error": "payload_invalid"}
 
-        indice = crud.fetch_menu_search_index(self.db)
-        payload_saipos, erros = build_payload_saipos(data, indice)
-        json_saipos = formatar_json_saipos(payload_saipos)
-
-        session_id = payload_saipos.get("session_id") or payload_saipos.get("telefone") or ""
-        telefone = payload_saipos.get("telefone") or ""
+        raw_session_id = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or ""
+        raw_telefone = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or ""
         trace_id = payload.get("trace_id") if isinstance(payload, dict) else None
+        audit_id = None
         try:
-            crud.insert_order_audit(
+            audit_id = crud.insert_order_audit_raw(
                 self.db,
-                session_id=session_id,
-                telefone=telefone,
+                session_id=raw_session_id,
+                telefone=raw_telefone,
                 trace_id=trace_id,
-                status="prepared",
                 agent_order_json=data,
-                saipos_payload_json=json_saipos,
             )
         except Exception:
-            logger.warning("order_audit_insert_failed", exc_info=True)
+            logger.warning("order_audit_raw_insert_failed", exc_info=True)
+
+        try:
+            indice = crud.fetch_menu_search_index(self.db)
+            payload_saipos, erros = build_payload_saipos(data, indice)
+            json_saipos = formatar_json_saipos(payload_saipos)
+
+            if audit_id:
+                try:
+                    crud.update_order_audit_saipos(
+                        self.db,
+                        audit_id=audit_id,
+                        status="prepared",
+                        saipos_payload_json=json_saipos,
+                        error=None,
+                    )
+                except Exception:
+                    logger.warning("order_audit_update_failed", exc_info=True)
+        except Exception as exc:
+            if audit_id:
+                try:
+                    crud.update_order_audit_saipos(
+                        self.db,
+                        audit_id=audit_id,
+                        status="failed",
+                        saipos_payload_json=None,
+                        error=str(exc),
+                    )
+                except Exception:
+                    logger.warning("order_audit_update_failed", exc_info=True)
+            raise
 
         response = self.saipos_client.send_order(json_saipos)
 

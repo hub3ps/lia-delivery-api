@@ -415,6 +415,72 @@ def insert_order_audit(
         raise
 
 
+def insert_order_audit_raw(
+    db,
+    session_id: str,
+    telefone: str,
+    trace_id: Optional[str],
+    agent_order_json: Dict[str, Any],
+) -> Optional[int]:
+    sql = text(
+        """
+        INSERT INTO public.order_audit
+          (session_id, telefone, trace_id, status, agent_order_json)
+        VALUES
+          (:session_id, :telefone, :trace_id, 'raw', CAST(:agent_order_json AS jsonb))
+        RETURNING id
+        """
+    )
+    try:
+        result = db.execute(
+            sql,
+            {
+                "session_id": session_id,
+                "telefone": telefone,
+                "trace_id": trace_id,
+                "agent_order_json": json.dumps(agent_order_json),
+            },
+        )
+        audit_id = result.scalar_one_or_none()
+        db.commit()
+        return audit_id
+    except Exception:
+        db.rollback()
+        raise
+
+
+def update_order_audit_saipos(
+    db,
+    audit_id: int,
+    status: str,
+    saipos_payload_json: Dict[str, Any] | None,
+    error: Optional[str] = None,
+) -> None:
+    sql = text(
+        """
+        UPDATE public.order_audit
+        SET status = :status,
+            saipos_payload_json = CAST(:saipos_payload_json AS jsonb),
+            error = :error
+        WHERE id = :id
+        """
+    )
+    try:
+        db.execute(
+            sql,
+            {
+                "id": audit_id,
+                "status": status,
+                "saipos_payload_json": None if saipos_payload_json is None else json.dumps(saipos_payload_json),
+                "error": error,
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
 def fetch_chat_history(db, session_id: str, limit: int = 20) -> List[Dict[str, Any]]:
     sql = text(
         """
