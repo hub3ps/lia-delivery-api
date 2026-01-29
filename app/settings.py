@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     openai_model_transcribe: str = Field("whisper-1", alias="OPENAI_MODEL_TRANSCRIBE")
 
     google_maps_api_key: str = Field("", alias="GOOGLE_MAPS_API_KEY")
+    delivery_city: str = Field("Itajaí", alias="DELIVERY_CITY")
 
     client_id: str = Field("06a81600-26fc-472b-880e-e6293943354e", alias="CLIENT_ID")
     restaurant_name: str = Field("Marcio Lanches & Pizzas", alias="RESTAURANT_NAME")
