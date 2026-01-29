@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
+
+from collections.abc import Mapping
 
 import httpx
 
@@ -28,6 +32,22 @@ def _strip_markdown_json(text: str) -> str:
     if start_index != -1 and end_index != -1:
         cleaned = cleaned[start_index : end_index + 1]
     return cleaned
+
+
+def _to_jsonable(obj: Any) -> Any:
+    if isinstance(obj, Mapping):
+        return {key: _to_jsonable(value) for key, value in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_jsonable(item) for item in obj]
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    if isinstance(obj, Decimal):
+        return float(obj)
+    return obj
+
+
+def _json_dumps_safe(obj: Any) -> str:
+    return json.dumps(_to_jsonable(obj), ensure_ascii=False)
 
 
 def calcular_totais(query: Any) -> str:
@@ -108,7 +128,7 @@ def calcular_totais(query: Any) -> str:
         "desconto": f"{desconto:.2f}",
         "total_final": f"{total:.2f}",
     }
-    return json.dumps(result, ensure_ascii=False)
+    return _json_dumps_safe(result)
 
 
 def render_atendente_prompt(base_prompt: str, ctx: Dict[str, Any]) -> str:
@@ -343,7 +363,7 @@ class LLMAgent:
                         {
                             "role": "tool",
                             "tool_call_id": call["id"],
-                            "content": json.dumps(result, ensure_ascii=False),
+                            "content": _json_dumps_safe(result),
                         }
                     )
                 continue
