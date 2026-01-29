@@ -3,10 +3,39 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 import json
+import logging
+import unicodedata
 
 from sqlalchemy import text
+from sqlalchemy.exc import ProgrammingError
 
 from app.settings import settings
+
+logger = logging.getLogger(__name__)
+
+
+def _normalize_text(value: str) -> str:
+    if not value:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(value))
+    stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return stripped.lower().strip()
+
+
+def _filter_delivery_areas(rows: List[Dict[str, Any]], bairro: str) -> List[Dict[str, Any]]:
+    target = _normalize_text(bairro)
+    if not target:
+        return rows[:10]
+    exact: List[Dict[str, Any]] = []
+    partial: List[Dict[str, Any]] = []
+    for row in rows:
+        district = row.get("bairro") or ""
+        norm = _normalize_text(district)
+        if norm == target:
+            exact.append(row)
+        elif target in norm:
+            partial.append(row)
+    return (exact + partial)[:10]
 
 
 def enqueue_message(db, data: Dict[str, Any]) -> None:
@@ -166,12 +195,13 @@ def fetch_cardapio(db) -> List[Dict[str, Any]]:
 
 
 def fetch_delivery_fee(db, bairro: str) -> List[Dict[str, Any]]:
+    cidade = settings.delivery_city or "Itajaí"
     sql = text(
         """
         SELECT district AS bairro, delivery_fee AS taxa_entrega, city AS cidade
         FROM delivery_areas
         WHERE active = true
-          AND unaccent(LOWER(city)) = unaccent(LOWER('Itajaí'))
+          AND unaccent(LOWER(city)) = unaccent(LOWER(:cidade))
           AND (
             unaccent(LOWER(district)) = unaccent(LOWER(:bairro))
             OR unaccent(LOWER(district)) LIKE '%' || unaccent(LOWER(:bairro)) || '%'
@@ -180,8 +210,25 @@ def fetch_delivery_fee(db, bairro: str) -> List[Dict[str, Any]]:
         LIMIT 10
         """
     )
-    result = db.execute(sql, {"bairro": bairro}).mappings().all()
-    return result
+    try:
+        result = db.execute(sql, {"bairro": bairro, "cidade": cidade}).mappings().all()
+        return result
+    except ProgrammingError as exc:
+        if "unaccent" not in str(exc).lower():
+            raise
+        db.rollback()
+        logger.warning("delivery_fee_unaccent_missing_fallback", extra={"cidade": cidade})
+        fallback_sql = text(
+            """
+            SELECT district AS bairro, delivery_fee AS taxa_entrega, city AS cidade
+            FROM delivery_areas
+            WHERE active = true
+              AND lower(city) = lower(:cidade)
+            ORDER BY district
+            """
+        )
+        rows = db.execute(fallback_sql, {"cidade": cidade}).mappings().all()
+        return _filter_delivery_areas(rows, bairro)
 
 
 def fetch_stage_rules(db, stage: str) -> Optional[Dict[str, Any]]:
