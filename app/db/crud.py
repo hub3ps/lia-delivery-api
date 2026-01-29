@@ -378,6 +378,43 @@ def insert_chat_history(db, session_id: str, role: str, content: str) -> None:
         raise
 
 
+def insert_order_audit(
+    db,
+    session_id: str,
+    telefone: str,
+    trace_id: Optional[str],
+    status: str,
+    agent_order_json: Dict[str, Any],
+    saipos_payload_json: Dict[str, Any],
+    error: Optional[str] = None,
+) -> None:
+    sql = text(
+        """
+        INSERT INTO public.order_audit
+          (session_id, telefone, trace_id, status, agent_order_json, saipos_payload_json, error)
+        VALUES
+          (:session_id, :telefone, :trace_id, :status, CAST(:agent_order_json AS jsonb), CAST(:saipos_payload_json AS jsonb), :error)
+        """
+    )
+    try:
+        db.execute(
+            sql,
+            {
+                "session_id": session_id,
+                "telefone": telefone,
+                "trace_id": trace_id,
+                "status": status,
+                "agent_order_json": json.dumps(agent_order_json),
+                "saipos_payload_json": json.dumps(saipos_payload_json),
+                "error": error,
+            },
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
 def fetch_chat_history(db, session_id: str, limit: int = 20) -> List[Dict[str, Any]]:
     sql = text(
         """

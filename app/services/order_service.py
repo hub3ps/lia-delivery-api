@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import random
 import time
 from typing import Any, Dict, Tuple
@@ -8,6 +9,8 @@ from app.db import crud
 from app.settings import settings
 from app.utils.fingerprints import calcular_total_pedido, mapear_itens
 from app.utils.phone import normalize_phone
+
+logger = logging.getLogger(__name__)
 
 
 def _num(val: Any, default: float = 0.0) -> float:
@@ -194,6 +197,22 @@ class OrderService:
         indice = crud.fetch_menu_search_index(self.db)
         payload_saipos, erros = build_payload_saipos(data, indice)
         json_saipos = formatar_json_saipos(payload_saipos)
+
+        session_id = payload_saipos.get("session_id") or payload_saipos.get("telefone") or ""
+        telefone = payload_saipos.get("telefone") or ""
+        trace_id = payload.get("trace_id") if isinstance(payload, dict) else None
+        try:
+            crud.insert_order_audit(
+                self.db,
+                session_id=session_id,
+                telefone=telefone,
+                trace_id=trace_id,
+                status="prepared",
+                agent_order_json=data,
+                saipos_payload_json=json_saipos,
+            )
+        except Exception:
+            logger.warning("order_audit_insert_failed", exc_info=True)
 
         response = self.saipos_client.send_order(json_saipos)
 
