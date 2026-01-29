@@ -159,10 +159,8 @@ def fetch_cardapio(db) -> List[Dict[str, Any]]:
             """
             SELECT categoria, item, tamanho, tipo, price, adicionais
             FROM public.menu_catalog_agent_v1
-            WHERE client_id = :client_id
             """
-        ),
-        {"client_id": settings.client_id},
+        )
     )
     return result.mappings().all()
 
@@ -191,13 +189,12 @@ def fetch_stage_rules(db, stage: str) -> Optional[Dict[str, Any]]:
         """
         SELECT stage, rules
         FROM public.delivery_policies_v2
-        WHERE client_id = :client_id::uuid
-          AND stage = :stage
+        WHERE stage = :stage
           AND is_active = true
         LIMIT 1
         """
     )
-    result = db.execute(sql, {"client_id": settings.client_id, "stage": stage}).mappings().first()
+    result = db.execute(sql, {"stage": stage}).mappings().first()
     return result
 
 
@@ -332,3 +329,17 @@ def insert_chat_history(db, session_id: str, role: str, content: str) -> None:
     except Exception:
         db.rollback()
         raise
+
+
+def fetch_chat_history(db, session_id: str, limit: int = 20) -> List[Dict[str, Any]]:
+    sql = text(
+        """
+        SELECT message
+        FROM public.n8n_historico_mensagens
+        WHERE session_id = :session_id
+        ORDER BY id DESC
+        LIMIT :limit
+        """
+    )
+    result = db.execute(sql, {"session_id": session_id, "limit": limit}).mappings().all()
+    return result

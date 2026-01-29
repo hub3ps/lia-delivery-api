@@ -9,6 +9,8 @@ Objetivo: estabilizar agora e escalar depois, sem interromper operação.
   - Registrar IDs de mensagens e ignorar repetidas.
 - **Histórico persistente**
   - Gravar mensagens (cliente e agente) em `n8n_historico_mensagens`.
+- **Cardápio e stages sem client_id (temporário)**
+  - Remover filtro por client_id para facilitar testes iniciais.
 - **Lock do followup**
   - Evitar múltiplos followups quando há mais de uma instância.
 - **Logs seguros**

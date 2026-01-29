@@ -137,6 +137,34 @@ def render_followup_prompt(base_prompt: str) -> str:
     return base_prompt
 
 
+def _history_rows_to_messages(rows: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+    messages: List[Dict[str, str]] = []
+    for row in rows:
+        raw = row.get("message")
+        data = None
+        if isinstance(raw, dict):
+            data = raw
+        elif isinstance(raw, str):
+            try:
+                data = json.loads(raw)
+            except Exception:
+                data = None
+        if not isinstance(data, dict):
+            continue
+        role = data.get("type")
+        content = None
+        payload = data.get("data") if isinstance(data.get("data"), dict) else {}
+        if payload:
+            content = payload.get("content")
+        if not content:
+            continue
+        if role == "human":
+            messages.append({"role": "user", "content": content})
+        elif role == "ai":
+            messages.append({"role": "assistant", "content": content})
+    return messages
+
+
 def _openai_chat(messages: List[Dict[str, Any]], tools: Optional[List[Dict]] = None, tool_choice: str = "auto") -> Dict[str, Any]:
     url = "https://api.openai.com/v1/chat/completions"
     headers = {"Authorization": f"Bearer {settings.openai_api_key}"}
@@ -285,10 +313,16 @@ class LLMAgent:
                 "nome_restaurante": settings.restaurant_name,
             },
         )
-        messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": message},
-        ]
+        messages: List[Dict[str, Any]] = [{"role": "system", "content": prompt}]
+
+        try:
+            rows = crud.fetch_chat_history(self.db, telefone, limit=20)
+            history_msgs = _history_rows_to_messages(list(reversed(rows)))
+            messages.extend(history_msgs)
+        except Exception:
+            pass
+
+        messages.append({"role": "user", "content": message})
         tools = self._tools()
 
         for _ in range(6):
