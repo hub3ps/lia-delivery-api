@@ -189,6 +189,70 @@ class OrderService:
         self.db = db
         self.saipos_client = saipos_client
 
+    def quote_order(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        data = payload.get("JSON") if isinstance(payload, dict) and payload.get("JSON") else payload
+        if not isinstance(data, dict):
+            return {"error": "payload_invalid"}
+
+        indice = crud.fetch_menu_search_index(self.db)
+        itens_mapeados, erros = mapear_itens(data, indice)
+        if erros:
+            return {"error": "item_not_found", "details": erros}
+
+        taxa_entrega = _num(data.get("taxa_entrega") or 0)
+        desconto = _num(data.get("desconto") or 0)
+
+        subtotal = 0.0
+        itens_saida: list[Dict[str, Any]] = []
+        for item in itens_mapeados:
+            item_total = (item.get("valor_unitario") or 0) * (item.get("quantidade") or 1)
+            adicionais_saida = []
+            for ad in item.get("adicionais", []):
+                item_total += (ad.get("valor_unitario") or 0) * (ad.get("quantidade") or 1) * (item.get("quantidade") or 1)
+                adicionais_saida.append(
+                    {
+                        "nome": ad.get("descricao") or "",
+                        "qtd": ad.get("quantidade") or 1,
+                        "valor_unitario": ad.get("valor_unitario") or 0,
+                    }
+                )
+            subtotal += item_total
+            itens_saida.append(
+                {
+                    "nome": item.get("descricao") or "",
+                    "qtd": item.get("quantidade") or 1,
+                    "valor_unitario": item.get("valor_unitario") or 0,
+                    "obs": item.get("observacao") or "",
+                    "adicionais": adicionais_saida,
+                }
+            )
+
+        total = subtotal + taxa_entrega - desconto
+
+        normalized = dict(data)
+        normalized["itens"] = itens_saida
+        normalized["taxa_entrega"] = taxa_entrega
+        normalized["desconto"] = desconto
+        normalized["subtotal"] = float(f"{subtotal:.2f}")
+        normalized["total"] = float(f"{total:.2f}")
+
+        session_id = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or ""
+        telefone = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or ""
+        trace_id = payload.get("trace_id") if isinstance(payload, dict) else None
+        try:
+            crud.insert_order_audit_quote(
+                self.db,
+                session_id=session_id,
+                telefone=telefone,
+                trace_id=trace_id,
+                agent_order_json=data,
+                quoted_json=normalized,
+            )
+        except Exception:
+            logger.warning("order_audit_quote_insert_failed", exc_info=True)
+
+        return {"JSON": normalized}
+
     def process_order(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         data = payload.get("JSON") if isinstance(payload, dict) and payload.get("JSON") else payload
         if not isinstance(data, dict):

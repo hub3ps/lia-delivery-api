@@ -262,9 +262,9 @@ class LLMAgent:
             {
                 "type": "function",
                 "function": {
-                    "name": "calcular_totais",
-                    "description": "Calcula totais do pedido a partir de itens, taxa e desconto.",
-                    "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+                    "name": "calcular_orcamento",
+                    "description": "Calcula orçamento do pedido no backend e retorna o JSON precificado.",
+                    "parameters": {"type": "object", "properties": {"JSON": {"type": "object"}}, "required": ["JSON"]},
                 },
             },
             {
@@ -310,8 +310,8 @@ class LLMAgent:
             return crud.fetch_delivery_fee(self.db, args.get("bairro") or "")
         if name == "maps":
             return self.geocode.geocode(args.get("query") or "")
-        if name == "calcular_totais":
-            return calcular_totais(args.get("query"))
+        if name == "calcular_orcamento":
+            return self.order_service.quote_order(args)
         if name == "enviar_pedido":
             return self.order_service.process_order(args.get("JSON") or {})
         if name == "cancelar_pedido":

@@ -15,6 +15,9 @@ Objetivo: estabilizar agora e escalar depois, sem interromper operação.
   - Evitar múltiplos followups quando há mais de uma instância.
 - **Logs seguros**
   - Logar metadados (sem conteúdo sensível).
+- **Orçamento determinístico no backend**
+  - Calcular subtotal/total no backend com base no cardápio oficial.
+  - Tool de orçamento usada antes do pagamento.
 
 **Você faz:** aplicar migration no Supabase + deploy no EasyPanel.
 

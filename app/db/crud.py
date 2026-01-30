@@ -449,6 +449,42 @@ def insert_order_audit_raw(
         raise
 
 
+def insert_order_audit_quote(
+    db,
+    session_id: str,
+    telefone: str,
+    trace_id: Optional[str],
+    agent_order_json: Dict[str, Any],
+    quoted_json: Dict[str, Any],
+) -> Optional[int]:
+    sql = text(
+        """
+        INSERT INTO public.order_audit
+          (session_id, telefone, trace_id, status, agent_order_json, quoted_json)
+        VALUES
+          (:session_id, :telefone, :trace_id, 'quote', CAST(:agent_order_json AS jsonb), CAST(:quoted_json AS jsonb))
+        RETURNING id
+        """
+    )
+    try:
+        result = db.execute(
+            sql,
+            {
+                "session_id": session_id,
+                "telefone": telefone,
+                "trace_id": trace_id,
+                "agent_order_json": json.dumps(agent_order_json),
+                "quoted_json": json.dumps(quoted_json),
+            },
+        )
+        audit_id = result.scalar_one_or_none()
+        db.commit()
+        return audit_id
+    except Exception:
+        db.rollback()
+        raise
+
+
 def update_order_audit_saipos(
     db,
     audit_id: int,
