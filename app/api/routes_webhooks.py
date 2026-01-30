@@ -127,7 +127,12 @@ def _build_agent(db):
     saipos = SaiposClient(settings.saipos_base_url, settings.saipos_partner_id, settings.saipos_partner_secret, settings.saipos_token_ttl_seconds)
     menu_service = MenuService(db, saipos)
     order_service = OrderService(db, saipos)
-    geocode = GeocodeService(settings.google_maps_api_key)
+    geocode = GeocodeService(
+        settings.google_maps_api_key,
+        city=settings.delivery_city,
+        state=settings.delivery_state,
+        country=settings.delivery_country,
+    )
 
     atendente_prompt = (open("prompts/atendente.md", "r", encoding="utf-8").read())
     followup_prompt = (open("prompts/followup.md", "r", encoding="utf-8").read())

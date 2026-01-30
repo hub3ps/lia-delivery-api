@@ -32,6 +32,8 @@ class Settings(BaseSettings):
 
     google_maps_api_key: str = Field("", alias="GOOGLE_MAPS_API_KEY")
     delivery_city: str = Field("Itajaí", alias="DELIVERY_CITY")
+    delivery_state: str = Field("SC", alias="DELIVERY_STATE")
+    delivery_country: str = Field("BR", alias="DELIVERY_COUNTRY")
 
     client_id: str = Field("06a81600-26fc-472b-880e-e6293943354e", alias="CLIENT_ID")
     restaurant_name: str = Field("Marcio Lanches & Pizzas", alias="RESTAURANT_NAME")

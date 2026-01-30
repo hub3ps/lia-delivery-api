@@ -255,7 +255,7 @@ class LLMAgent:
                 "type": "function",
                 "function": {
                     "name": "maps",
-                    "description": "Valida endereço via Google Maps.",
+                    "description": "Valida endereço via Google Maps (cidade/UF adicionadas automaticamente).",
                     "parameters": {"type": "object", "properties": {"query": {"type": "string"}}, "required": ["query"]},
                 },
             },
