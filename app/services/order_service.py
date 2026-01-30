@@ -303,7 +303,10 @@ class OrderService:
                     logger.warning("order_audit_update_failed", exc_info=True)
             raise
 
-        response = self.saipos_client.send_order(json_saipos)
+        if settings.saipos_dry_run:
+            response = {"status": "dry_run", "message": "Saipos envio desativado em testes."}
+        else:
+            response = self.saipos_client.send_order(json_saipos)
 
         crud.insert_order(
             self.db,

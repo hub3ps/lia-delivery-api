@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     saipos_token_ttl_seconds: int = Field(3500, alias="SAIPOS_TOKEN_TTL_SECONDS")
     saipos_cod_store: str = Field("", alias="SAIPOS_COD_STORE")
     saipos_display_id: str = Field("", alias="SAIPOS_DISPLAY_ID")
+    saipos_dry_run: bool = Field(False, alias="SAIPOS_DRY_RUN")
 
     openai_api_key: str = Field("", alias="OPENAI_API_KEY")
     openai_model_chat: str = Field("gpt-4o-mini", alias="OPENAI_MODEL_CHAT")
