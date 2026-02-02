@@ -20,15 +20,13 @@ def _normalize_text(text: str) -> str:
 
 def _split_into_items(text: str) -> List[str]:
     """Divide o texto em itens individuais."""
-    # Remove espaços extras
-    text = re.sub(r"\s+", " ", text.strip())
-
     # Primeiro, divide por quebras de linha
     lines = text.split("\n")
 
     items = []
     for line in lines:
-        line = line.strip()
+        # Normaliza espaços apenas dentro da linha (não entre linhas)
+        line = re.sub(r"\s+", " ", line.strip())
         if not line:
             continue
 
