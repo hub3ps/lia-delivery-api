@@ -83,14 +83,21 @@ Aguarde a resposta e chame **interpretar_pedido** novamente com a correção.
 
 ### Se todos os itens forem válidos (sucesso: true)
 
-Apresente ao cliente usando os dados da tool:
+A tool retorna para cada item:
+- **preco_unitario**: preço base do produto
+- **preco_total_unitario**: preço do produto + adicionais (use este para mostrar o preço de cada unidade)
+- **preco_total**: (preco_total_unitario × quantidade) - use para somar o pedido
+
+Apresente ao cliente usando **preco_total_unitario** de cada item:
 ```
-  • 2x X Galinha — R$ 34,00 (cada)
-    + Bacon — R$ 10,00
+  • 2x X Galinha com Bacon — R$ 44,00 cada (R$ 88,00)
     (sem salada)
   • 1x Coca Cola 2 Litros — R$ 12,00
   • 1x Batata Frita (1/4 Porção) — R$ 25,00
+  Total: R$ 125,00
 ```
+
+**IMPORTANTE:** O preço mostrado para cada item deve incluir os adicionais. Use `preco_total_unitario` para mostrar o valor correto.
 
 Pergunte: "Confirma ou quer ajustar algo?"
 

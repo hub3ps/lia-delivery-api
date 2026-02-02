@@ -80,12 +80,25 @@ class ValidItem:
     adicionais: List[ValidAdditional] = field(default_factory=list)
     observacoes: str = ""
 
+    @property
+    def preco_total_unitario(self) -> float:
+        """Preço unitário do item + adicionais."""
+        total_adicionais = sum(a.preco_unitario * a.quantidade for a in self.adicionais)
+        return self.preco_unitario + total_adicionais
+
+    @property
+    def preco_total(self) -> float:
+        """Preço total do item (unitário + adicionais) * quantidade."""
+        return self.preco_total_unitario * self.quantidade
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "nome": self.nome,
             "pdv": self.pdv,
             "quantidade": self.quantidade,
             "preco_unitario": self.preco_unitario,
+            "preco_total_unitario": self.preco_total_unitario,
+            "preco_total": self.preco_total,
             "adicionais": [a.to_dict() for a in self.adicionais],
             "observacoes": self.observacoes,
         }
