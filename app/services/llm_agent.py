@@ -15,6 +15,7 @@ from app.db import crud
 from app.services.geocode_service import GeocodeService
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService
+from app.services.order_interpreter import OrderInterpreterService
 
 
 def _strip_markdown_json(text: str) -> str:
@@ -224,17 +225,10 @@ class LLMAgent:
         self.geocode = geocode
         self.prompt_text = prompt_text
         self.followup_prompt = followup_prompt
+        self.order_interpreter = OrderInterpreterService(db)
 
     def _tools(self) -> List[Dict[str, Any]]:
         return [
-            {
-                "type": "function",
-                "function": {
-                    "name": "stages",
-                    "description": "Retorna regras de interpretação para uma etapa específica.",
-                    "parameters": {"type": "object", "properties": {"stage": {"type": "string"}}, "required": ["stage"]},
-                },
-            },
             {
                 "type": "function",
                 "function": {
@@ -299,11 +293,26 @@ class LLMAgent:
                     "parameters": {"type": "object", "properties": {}},
                 },
             },
+            {
+                "type": "function",
+                "function": {
+                    "name": "interpretar_pedido",
+                    "description": "OBRIGATÓRIO: Interpreta o texto do pedido do cliente. Aplica regras de gírias (ex: 'careca' = sem salada), valida contra o cardápio, e retorna itens estruturados com preços. SEMPRE use esta tool ao receber itens do pedido antes de confirmar com o cliente.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "texto_pedido": {
+                                "type": "string",
+                                "description": "O texto completo que o cliente enviou contendo os itens do pedido"
+                            }
+                        },
+                        "required": ["texto_pedido"]
+                    },
+                },
+            },
         ]
 
     def _execute_tool(self, name: str, args: Dict[str, Any]) -> Any:
-        if name == "stages":
-            return crud.fetch_stage_rules(self.db, args.get("stage") or "")
         if name == "cardapio":
             return crud.fetch_cardapio(self.db)
         if name == "taxa_entrega":
@@ -320,6 +329,8 @@ class LLMAgent:
             return self.geocode.geocode(args.get("texto") or "")
         if name == "atualizar_cardapio":
             return self.menu_service.sync_menu()
+        if name == "interpretar_pedido":
+            return self.order_interpreter.interpret_to_dict(args.get("texto_pedido") or "")
         return {"error": f"tool_not_found: {name}"}
 
     def run(self, message: str, telefone: str, horario: str, historico: Dict[str, Any]) -> str:
