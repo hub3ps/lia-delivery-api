@@ -189,6 +189,73 @@ class TestGiriaResolver:
         assert "bem passado" in result.observacoes
 
 
+class TestNoiseWordRemoval:
+    """Testes para remoção de palavras de ruído."""
+
+    def setup_method(self):
+        self.parser = OrderParser()
+
+    def test_remove_a_mais(self):
+        """Testa remoção de 'a mais' (Exemplo 4)."""
+        result = self.parser.parse("2 maionese a mais")
+        assert len(result) == 1
+        assert result[0].quantidade == 2
+        assert "maionese" in result[0].texto_produto.lower()
+        # "a mais" não deve estar no produto
+        assert "mais" not in result[0].texto_produto.lower()
+
+    def test_remove_extra_from_additional(self):
+        """Testa remoção de 'extra' do adicional (Exemplo 5)."""
+        result = self.parser.parse("X salada com maionese extra")
+        assert len(result) == 1
+        # O adicional deve ser "maionese" sem "extra"
+        adicionais_lower = [a.lower() for a in result[0].adicionais_texto]
+        assert "maionese" in adicionais_lower
+        assert "maionese extra" not in adicionais_lower
+
+    def test_remove_por_favor(self):
+        """Testa remoção de 'por favor' (Exemplo 9)."""
+        result = self.parser.parse("2 maionese por favor")
+        assert len(result) == 1
+        assert "favor" not in result[0].texto_produto.lower()
+
+    def test_normal_is_modifier(self):
+        """Testa que 'normal' é extraído como modificador (Exemplo 11)."""
+        result = self.parser.parse("1 x salada completo normal")
+        assert len(result) == 1
+        mods_lower = [m.lower() for m in result[0].modificadores]
+        # Pode ser extraído como modificador ou removido como ruído
+        assert "normal" in mods_lower or "normal" not in result[0].texto_produto.lower()
+
+
+class TestNoPratoHandling:
+    """Testes para tratamento de 'no prato' / 'aberto'."""
+
+    def setup_method(self):
+        self.parser = OrderParser()
+        self.resolver = GiriaResolver(db=None)
+
+    def test_aberto_no_prato_modifier(self):
+        """Testa que 'aberto no prato' vira modificador (Exemplo 11)."""
+        result = self.parser.parse("2 x salada aberto no prato")
+        assert len(result) == 1
+        mods_lower = [m.lower() for m in result[0].modificadores]
+        assert "no prato" in mods_lower
+
+    def test_aberto_no_prato_becomes_product_suffix(self):
+        """Testa que 'aberto no prato' adiciona sufixo ao produto."""
+        parsed = self.parser.parse("2 x salada aberto no prato")
+        resolved = self.resolver.resolve(parsed[0])
+        # O produto deve conter "no Prato"
+        assert "no prato" in resolved.produto_busca.lower()
+
+    def test_aberto_alone_becomes_no_prato(self):
+        """Testa que 'aberto' sozinho vira 'no prato'."""
+        parsed = self.parser.parse("1 x galinha aberto")
+        mods_lower = [m.lower() for m in parsed[0].modificadores]
+        assert "no prato" in mods_lower
+
+
 class TestIntegration:
     """Testes de integração."""
 
@@ -207,3 +274,39 @@ class TestIntegration:
         assert "Bacon" in resolved.adicionais_busca
         assert "Milho" in resolved.adicionais_busca
         assert any("cortado ao meio" in o.lower() for o in resolved.observacoes)
+
+    def test_normal_is_ignored_in_resolver(self):
+        """Testa que 'normal' é ignorado pelo resolver."""
+        parser = OrderParser()
+        resolver = GiriaResolver(db=None)
+
+        parsed = parser.parse("1 x salada completo normal")
+        resolved = resolver.resolve(parsed[0])
+        # "normal" não deve aparecer nas observações
+        assert "normal" not in " ".join(resolved.observacoes).lower()
+
+    def test_complete_example_11(self):
+        """Testa exemplo 11 completo: múltiplos itens com no prato."""
+        parser = OrderParser()
+        resolver = GiriaResolver(db=None)
+
+        text = """2 x salada aberto no prato
+1 x salada completo normal
+8 maionese extra"""
+        parsed = parser.parse(text)
+        assert len(parsed) == 3
+
+        # Item 1: X Salada no Prato
+        resolved1 = resolver.resolve(parsed[0])
+        assert resolved1.quantidade == 2
+        assert "prato" in resolved1.produto_busca.lower()
+
+        # Item 2: X Salada (completo e normal ignorados)
+        resolved2 = resolver.resolve(parsed[1])
+        assert resolved2.quantidade == 1
+        assert "prato" not in resolved2.produto_busca.lower()
+
+        # Item 3: Maionese (8 unidades)
+        resolved3 = resolver.resolve(parsed[2])
+        assert resolved3.quantidade == 8
+        assert "maionese" in resolved3.produto_busca.lower()

@@ -53,6 +53,13 @@ def _extract_quantity(text: str) -> tuple[int, str]:
     return 1, text
 
 
+def _clean_additional(adicional: str) -> str:
+    """Remove sufixos de ruído de um adicional."""
+    # Remove "extra", "a mais", etc. do final do adicional
+    adicional = re.sub(r"\s+(extra|a mais|adicional)$", "", adicional, flags=re.IGNORECASE)
+    return adicional.strip()
+
+
 def _extract_additionals(text: str) -> tuple[str, List[str]]:
     """Extrai adicionais do texto (padrão 'com X e Y')."""
     adicionais = []
@@ -67,7 +74,7 @@ def _extract_additionals(text: str) -> tuple[str, List[str]]:
         # Divide adicionais por "e" ou ","
         parts = re.split(r"\s+e\s+|,\s*", adicional_text)
         for part in parts:
-            part = part.strip()
+            part = _clean_additional(part.strip())
             if part and not _is_observation_keyword(part):
                 adicionais.append(part)
 
@@ -83,6 +90,27 @@ def _is_observation_keyword(text: str) -> bool:
     ]
     text_lower = text.lower().strip()
     return any(kw in text_lower for kw in keywords)
+
+
+# Palavras que devem ser removidas do texto (ruído)
+NOISE_WORDS = [
+    r"\s+a\s+mais\b",
+    r"\s+extra\b",
+    r"\s+adicional\b",
+    r"\s+por\s+favor\b",
+    r"\s+normal\b",
+    r"\s+obrigado\b",
+    r"\s+obrigada\b",
+    r"\s+pf\b",
+    r"\s+pfv\b",
+]
+
+
+def _remove_noise_words(text: str) -> str:
+    """Remove palavras de ruído do texto."""
+    for pattern in NOISE_WORDS:
+        text = re.sub(pattern, "", text, flags=re.IGNORECASE)
+    return text.strip()
 
 
 def _extract_observations(text: str) -> tuple[str, List[str]]:
@@ -117,17 +145,20 @@ def _extract_modifiers(text: str) -> tuple[str, List[str]]:
     modificadores = []
 
     # Lista de modificadores conhecidos
+    # IMPORTANTE: padrões mais específicos devem vir primeiro
     modifier_patterns = [
+        (r"\s+aberto\s+no\s+prato\b", "no prato"),  # Mais específico primeiro
+        (r"\s+no\s+prato\b", "no prato"),
+        (r"\s+aberto\b", "no prato"),
         (r"\s+careca\b", "careca"),
         (r"\s+completo\b", "completo"),
-        (r"\s+no\s+prato\b", "no prato"),
-        (r"\s+aberto\s+no\s+prato\b", "no prato"),
-        (r"\s+aberto\b", "no prato"),
+        (r"\s+normal\b", "normal"),  # "normal" será ignorado depois
     ]
 
     for pattern, mod in modifier_patterns:
         if re.search(pattern, text, re.IGNORECASE):
-            modificadores.append(mod)
+            if mod not in modificadores:  # Evita duplicatas
+                modificadores.append(mod)
             text = re.sub(pattern, "", text, flags=re.IGNORECASE)
 
     return text.strip(), modificadores
@@ -172,7 +203,10 @@ class OrderParser:
             # 4. Extrai modificadores (careca, completo, no prato)
             remaining, modificadores = _extract_modifiers(remaining)
 
-            # 5. O que sobrou é o nome do produto
+            # 5. Remove palavras de ruído
+            remaining = _remove_noise_words(remaining)
+
+            # 6. O que sobrou é o nome do produto
             texto_produto = remaining.strip()
 
             # Remove artigos e preposições do início

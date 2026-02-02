@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 GIRIAS_PADRAO: Dict[str, Dict[str, Any]] = {
     "careca": {"tipo": "observacao", "valor": "sem salada"},
     "completo": {"tipo": "ignorar", "valor": None},
+    "normal": {"tipo": "ignorar", "valor": None},
     "no prato": {"tipo": "sufixo_produto", "valor": " no Prato"},
     "aberto": {"tipo": "sufixo_produto", "valor": " no Prato"},
 }
