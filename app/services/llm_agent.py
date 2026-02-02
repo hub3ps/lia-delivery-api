@@ -270,7 +270,7 @@ class LLMAgent:
                     "description": "Salva/atualiza os itens do carrinho (substitui a lista atual).",
                     "parameters": {
                         "type": "object",
-                        "properties": {"itens": {"type": "array"}},
+                        "properties": {"itens": {"type": "array", "items": {"type": "object"}}},
                         "required": ["itens"],
                     },
                 },
