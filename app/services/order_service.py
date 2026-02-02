@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import random
 import time
+from datetime import datetime
 from typing import Any, Dict, Tuple
 
 from app.db import crud
@@ -26,8 +27,61 @@ def _to_str(val: Any) -> str:
     return "" if val is None else str(val)
 
 
+def _items_have_pdv(itens: list) -> bool:
+    if not isinstance(itens, list) or not itens:
+        return False
+    return all(bool(item.get("pdv")) for item in itens if isinstance(item, dict))
+
+
+def _normalize_cart_items_for_saipos(itens: list) -> list[Dict[str, Any]]:
+    normalized: list[Dict[str, Any]] = []
+    for item in itens:
+        if not isinstance(item, dict):
+            continue
+        adicionais_raw = item.get("adicionais") if isinstance(item.get("adicionais"), list) else []
+        adicionais_norm = []
+        for ad in adicionais_raw:
+            if not isinstance(ad, dict):
+                continue
+            adicionais_norm.append(
+                {
+                    "pdv": ad.get("pdv") or "",
+                    "descricao": ad.get("nome") or ad.get("descricao") or "",
+                    "quantidade": _num(ad.get("quantidade") or ad.get("qtd") or 1),
+                    "valor_unitario": _num(ad.get("preco_unitario") or ad.get("valor_unitario") or ad.get("valor") or 0),
+                }
+            )
+        normalized.append(
+            {
+                "pdv": item.get("pdv") or "",
+                "descricao": item.get("nome") or item.get("descricao") or "",
+                "quantidade": _num(item.get("quantidade") or item.get("qtd") or 1),
+                "valor_unitario": _num(item.get("preco_unitario") or item.get("valor_unitario") or item.get("valor") or 0),
+                "observacao": item.get("observacoes") or item.get("observacao") or item.get("obs") or "",
+                "adicionais": adicionais_norm,
+            }
+        )
+    return normalized
+
+
+def _calc_subtotal(itens_mapeados: list[Dict[str, Any]]) -> float:
+    subtotal = 0.0
+    for item in itens_mapeados:
+        qtd = _num(item.get("quantidade"), 1)
+        item_total = _num(item.get("valor_unitario")) * qtd
+        for ad in item.get("adicionais", []):
+            item_total += _num(ad.get("valor_unitario")) * _num(ad.get("quantidade"), 1) * qtd
+        subtotal += item_total
+    return subtotal
+
+
 def build_payload_saipos(pedido_original: Dict, indice_banco: list) -> Tuple[Dict, list]:
-    itens_mapeados, erros = mapear_itens(pedido_original, indice_banco)
+    itens_raw = pedido_original.get("itens") if isinstance(pedido_original, dict) else []
+    if _items_have_pdv(itens_raw):
+        itens_mapeados = _normalize_cart_items_for_saipos(itens_raw)
+        erros: list[str] = []
+    else:
+        itens_mapeados, erros = mapear_itens(pedido_original, indice_banco)
 
     taxa_entrega = _num(pedido_original.get("taxa_entrega") or 0)
     desconto = _num(pedido_original.get("desconto") or 0)
@@ -48,16 +102,28 @@ def build_payload_saipos(pedido_original: Dict, indice_banco: list) -> Tuple[Dic
         if len(partes) >= 3:
             bairro = partes[2]
 
+    session_id = (
+        (pedido_original.get("dados_cliente") or {}).get("telefone")
+        or pedido_original.get("telefone")
+        or pedido_original.get("session_id")
+        or ""
+    )
+    telefone = (
+        (pedido_original.get("dados_cliente") or {}).get("telefone")
+        or pedido_original.get("telefone")
+        or session_id
+    )
     payload = {
-        "session_id": (pedido_original.get("dados_cliente") or {}).get("telefone") or pedido_original.get("telefone"),
+        "session_id": session_id,
         "nome": (pedido_original.get("dados_cliente") or {}).get("nome") or pedido_original.get("nome"),
-        "telefone": (pedido_original.get("dados_cliente") or {}).get("telefone") or pedido_original.get("telefone"),
+        "telefone": telefone,
         "tipo_entrega": pedido_original.get("tipo_entrega"),
         "rua": rua,
         "numero": numero,
         "bairro": bairro,
         "cep": endereco.get("cep") or "",
-        "cidade": "Itajaí",
+        "cidade": settings.delivery_city or "Itajaí",
+        "estado": endereco.get("estado") or settings.delivery_state or "SC",
         "complemento": complemento,
         "taxa_entrega": _num(pedido_original.get("taxa_entrega") or 0),
         "desconto": _num(pedido_original.get("desconto") or 0),
@@ -86,7 +152,7 @@ def formatar_json_saipos(data: Dict[str, Any]) -> Dict[str, Any]:
             choice_items.append(
                 {
                     "integration_code": integration_code,
-                    "desc_item_choice": ad.get("descricao") or "",
+                    "desc_item_choice": ad.get("descricao") or ad.get("nome") or "",
                     "aditional_price": _num(ad.get("valor_unitario")),
                     "quantity": _num(ad.get("quantidade"), 1),
                     "notes": "",
@@ -96,7 +162,7 @@ def formatar_json_saipos(data: Dict[str, Any]) -> Dict[str, Any]:
         pedidos_array.append(
             {
                 "integration_code": str(item.get("pdv") or "").strip(),
-                "desc_item": item.get("descricao") or "",
+                "desc_item": item.get("descricao") or item.get("nome") or "",
                 "quantity": _num(item.get("quantidade"), 1),
                 "unit_price": _num(item.get("valor_unitario")),
                 "notes": item.get("observacao") or "",
@@ -192,42 +258,60 @@ class OrderService:
     def quote_order(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         data = payload.get("JSON") if isinstance(payload, dict) and payload.get("JSON") else payload
         if not isinstance(data, dict):
-            return {"error": "payload_invalid"}
+            data = {}
 
-        indice = crud.fetch_menu_search_index(self.db)
-        itens_mapeados, erros = mapear_itens(data, indice)
+        session_id = (
+            payload.get("session_id")
+            if isinstance(payload, dict)
+            else ""
+        ) or (data.get("session_id") or data.get("telefone") or (data.get("dados_cliente") or {}).get("telefone") or "")
+
+        if not data.get("itens"):
+            cart = crud.fetch_cart(self.db, session_id) if session_id else None
+            if isinstance(cart, dict):
+                data = {**cart, **data}
+
+        if not isinstance(data, dict) or not data.get("itens"):
+            return {"error": "cart_empty"}
+
+        itens_raw = data.get("itens") if isinstance(data.get("itens"), list) else []
+        if _items_have_pdv(itens_raw):
+            itens_mapeados = _normalize_cart_items_for_saipos(itens_raw)
+            erros: list[str] = []
+        else:
+            indice = crud.fetch_menu_search_index(self.db)
+            itens_mapeados, erros = mapear_itens(data, indice)
         if erros:
             return {"error": "item_not_found", "details": erros}
 
         taxa_entrega = _num(data.get("taxa_entrega") or 0)
         desconto = _num(data.get("desconto") or 0)
 
-        subtotal = 0.0
+        subtotal = _calc_subtotal(itens_mapeados)
+        total = subtotal + taxa_entrega - desconto
+
         itens_saida: list[Dict[str, Any]] = []
         for item in itens_mapeados:
-            item_total = (item.get("valor_unitario") or 0) * (item.get("quantidade") or 1)
             adicionais_saida = []
             for ad in item.get("adicionais", []):
-                item_total += (ad.get("valor_unitario") or 0) * (ad.get("quantidade") or 1) * (item.get("quantidade") or 1)
                 adicionais_saida.append(
                     {
                         "nome": ad.get("descricao") or "",
                         "qtd": ad.get("quantidade") or 1,
                         "valor_unitario": ad.get("valor_unitario") or 0,
+                        "pdv": ad.get("pdv") or "",
                     }
                 )
-            subtotal += item_total
             itens_saida.append(
                 {
                     "nome": item.get("descricao") or "",
                     "qtd": item.get("quantidade") or 1,
                     "valor_unitario": item.get("valor_unitario") or 0,
                     "obs": item.get("observacao") or "",
+                    "pdv": item.get("pdv") or "",
                     "adicionais": adicionais_saida,
                 }
             )
-
-        total = subtotal + taxa_entrega - desconto
 
         normalized = dict(data)
         normalized["itens"] = itens_saida
@@ -235,9 +319,10 @@ class OrderService:
         normalized["desconto"] = desconto
         normalized["subtotal"] = float(f"{subtotal:.2f}")
         normalized["total"] = float(f"{total:.2f}")
+        if session_id and not normalized.get("session_id"):
+            normalized["session_id"] = session_id
 
-        session_id = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or ""
-        telefone = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or ""
+        telefone = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or session_id or ""
         trace_id = payload.get("trace_id") if isinstance(payload, dict) else None
         try:
             crud.insert_order_audit_quote(
@@ -256,10 +341,22 @@ class OrderService:
     def process_order(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         data = payload.get("JSON") if isinstance(payload, dict) and payload.get("JSON") else payload
         if not isinstance(data, dict):
-            return {"error": "payload_invalid"}
+            data = {}
 
-        raw_session_id = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or ""
-        raw_telefone = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or ""
+        raw_session_id = (
+            payload.get("session_id")
+            if isinstance(payload, dict)
+            else ""
+        ) or (data.get("session_id") or data.get("telefone") or (data.get("dados_cliente") or {}).get("telefone") or "")
+        raw_telefone = (data.get("dados_cliente") or {}).get("telefone") or data.get("telefone") or raw_session_id or ""
+        if not data.get("itens") and raw_session_id:
+            cart = crud.fetch_cart(self.db, raw_session_id)
+            if isinstance(cart, dict):
+                data = {**cart, **data}
+
+        if not data.get("itens"):
+            return {"error": "cart_empty"}
+
         trace_id = payload.get("trace_id") if isinstance(payload, dict) else None
         audit_id = None
         try:
@@ -308,7 +405,29 @@ class OrderService:
         else:
             response = self.saipos_client.send_order(json_saipos)
 
-        crud.insert_order(
+        client_id = None
+        try:
+            client_id = crud.upsert_client(
+                self.db,
+                telefone=payload_saipos.get("telefone") or "",
+                nome=payload_saipos.get("nome") or None,
+                last_purchase=datetime.utcnow(),
+            )
+            endereco = {
+                "rua": payload_saipos.get("rua"),
+                "numero": payload_saipos.get("numero"),
+                "bairro": payload_saipos.get("bairro"),
+                "cidade": payload_saipos.get("cidade"),
+                "estado": payload_saipos.get("estado"),
+                "cep": payload_saipos.get("cep"),
+                "complemento": payload_saipos.get("complemento"),
+            }
+            if client_id and any(endereco.values()):
+                crud.upsert_address(self.db, client_id, endereco)
+        except Exception:
+            logger.warning("client_update_failed", exc_info=True)
+
+        order_db_id = crud.insert_order(
             self.db,
             order_id=json_saipos.get("order_id"),
             telefone=payload_saipos.get("telefone") or "",
@@ -316,11 +435,21 @@ class OrderService:
             payload=json_saipos,
             response=response,
             cod_store=json_saipos.get("cod_store") or "",
+            client_id=client_id,
         )
+        try:
+            if order_db_id:
+                crud.insert_order_items(self.db, order_db_id, payload_saipos.get("itens") or [])
+        except Exception:
+            logger.warning("order_items_insert_failed", exc_info=True)
 
         session_id = payload_saipos.get("session_id") or payload_saipos.get("telefone")
         if session_id:
             crud.update_active_session_finished(self.db, session_id)
+            try:
+                crud.clear_cart(self.db, session_id)
+            except Exception:
+                logger.warning("cart_clear_failed", exc_info=True)
 
         return {
             "payload": json_saipos,

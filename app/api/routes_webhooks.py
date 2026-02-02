@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict
 
@@ -89,6 +90,8 @@ def parse_evolution_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         message_type = "audio"
     elif message.get("conversation"):
         message_type = "text"
+    elif message.get("extendedTextMessage"):
+        message_type = "text"
     elif message.get("stickerMessage"):
         message_type = "image/webp"
     elif message.get("documentMessage"):
@@ -99,11 +102,19 @@ def parse_evolution_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     timestamp = data.get("messageTimestamp") or 0
     timestamp_iso = datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat() if timestamp else ""
 
+    text_content = (
+        message.get("conversation")
+        or (message.get("extendedTextMessage") or {}).get("text")
+        or (message.get("imageMessage") or {}).get("caption")
+        or (message.get("documentMessage") or {}).get("caption")
+        or ""
+    )
+
     return {
         "id_mensagem": key.get("id"),
         "telefone": telefone,
         "instancia": body.get("instance") or body.get("instance_id") or "",
-        "mensagem": message.get("conversation") or "",
+        "mensagem": text_content,
         "mensagem_de_audio": (message.get("audioMessage") or {}).get("ptt") or False,
         "timestamp": timestamp,
         "fromMe": key.get("fromMe") or False,
@@ -160,6 +171,23 @@ def _process_message(info: Dict[str, Any]) -> None:
                     audio_bytes = base64.b64decode(base64_data)
                     agent = _build_agent(db)
                     content = agent.transcribe_audio(audio_bytes)
+            elif info.get("message_type") in ("image", "documentMessage"):
+                base64_data = info.get("image_base64") or ""
+                if not base64_data:
+                    try:
+                        resp = evolution.get_base64_from_media(info.get("instancia"), info.get("id_mensagem"), base_url=info.get("url_evolution"))
+                        base64_data = resp.get("base64") or resp.get("data") or ""
+                    except Exception:
+                        base64_data = ""
+                if base64_data and "," in base64_data:
+                    base64_data = base64_data.split(",")[-1]
+                media_payload = {
+                    "tipo": "media",
+                    "media_base64": base64_data,
+                    "mime_type": info.get("image_mimetype") or info.get("media_mime") or "application/octet-stream",
+                    "texto": info.get("mensagem") or "",
+                }
+                content = json.dumps(media_payload, ensure_ascii=False)
             if not content:
                 content = concat_messages(queue) or info.get("mensagem") or ""
 

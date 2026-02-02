@@ -40,6 +40,8 @@ class ActiveSession(Base):
     status = Column(String, default="active")
     followup_sent_at = Column(DateTime(timezone=True))
     followup_count = Column(Integer, default=0)
+    cart_json = Column(JSON)
+    cart_updated_at = Column(DateTime(timezone=True))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

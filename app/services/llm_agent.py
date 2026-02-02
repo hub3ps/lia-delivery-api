@@ -16,6 +16,7 @@ from app.services.geocode_service import GeocodeService
 from app.services.menu_service import MenuService
 from app.services.order_service import OrderService
 from app.services.order_interpreter import OrderInterpreterService
+from app.services.pix_validator import validate_pix_receipt
 
 
 def _strip_markdown_json(text: str) -> str:
@@ -226,9 +227,56 @@ class LLMAgent:
         self.prompt_text = prompt_text
         self.followup_prompt = followup_prompt
         self.order_interpreter = OrderInterpreterService(db)
+        self._current_session_id: str | None = None
 
     def _tools(self) -> List[Dict[str, Any]]:
         return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "carrinho_obter",
+                    "description": "Retorna o carrinho atual da sessão.",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "carrinho_salvar_itens",
+                    "description": "Salva/atualiza os itens do carrinho (substitui a lista atual).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"itens": {"type": "array"}},
+                        "required": ["itens"],
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "carrinho_atualizar",
+                    "description": "Atualiza campos do carrinho (tipo_entrega, endereco, taxa_entrega, desconto, pagamento, troco_para).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "tipo_entrega": {"type": "string"},
+                            "endereco": {"type": "object"},
+                            "taxa_entrega": {"type": "number"},
+                            "desconto": {"type": "number"},
+                            "pagamento": {"type": "string"},
+                            "troco_para": {"type": "number"},
+                        },
+                    },
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "carrinho_limpar",
+                    "description": "Limpa o carrinho da sessão.",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            },
             {
                 "type": "function",
                 "function": {
@@ -258,7 +306,7 @@ class LLMAgent:
                 "function": {
                     "name": "calcular_orcamento",
                     "description": "Calcula orçamento do pedido no backend e retorna o JSON precificado.",
-                    "parameters": {"type": "object", "properties": {"JSON": {"type": "object"}}, "required": ["JSON"]},
+                    "parameters": {"type": "object", "properties": {"JSON": {"type": "object"}}},
                 },
             },
             {
@@ -266,7 +314,22 @@ class LLMAgent:
                 "function": {
                     "name": "enviar_pedido",
                     "description": "Envia um novo pedido para a cozinha.",
-                    "parameters": {"type": "object", "properties": {"JSON": {"type": "object"}}, "required": ["JSON"]},
+                    "parameters": {"type": "object", "properties": {"JSON": {"type": "object"}}},
+                },
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "validar_comprovante_pix",
+                    "description": "Valida comprovante PIX (imagem ou texto). Retorna se é válido.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "media_base64": {"type": "string"},
+                            "mime_type": {"type": "string"},
+                            "texto": {"type": "string"},
+                        },
+                    },
                 },
             },
             {
@@ -313,6 +376,30 @@ class LLMAgent:
         ]
 
     def _execute_tool(self, name: str, args: Dict[str, Any]) -> Any:
+        if name == "carrinho_obter":
+            if not self._current_session_id:
+                return {"error": "missing_session_id"}
+            return crud.fetch_cart(self.db, self._current_session_id) or {}
+        if name == "carrinho_salvar_itens":
+            if not self._current_session_id:
+                return {"error": "missing_session_id"}
+            itens = args.get("itens") if isinstance(args.get("itens"), list) else []
+            return crud.patch_cart(self.db, self._current_session_id, {"itens": itens})
+        if name == "carrinho_atualizar":
+            if not self._current_session_id:
+                return {"error": "missing_session_id"}
+            patch = {}
+            for key in ("tipo_entrega", "endereco", "taxa_entrega", "desconto", "pagamento", "troco_para"):
+                if key in args:
+                    patch[key] = args.get(key)
+            if not patch:
+                return crud.fetch_cart(self.db, self._current_session_id) or {}
+            return crud.patch_cart(self.db, self._current_session_id, patch)
+        if name == "carrinho_limpar":
+            if not self._current_session_id:
+                return {"error": "missing_session_id"}
+            crud.clear_cart(self.db, self._current_session_id)
+            return {"status": "ok"}
         if name == "cardapio":
             return crud.fetch_cardapio(self.db)
         if name == "taxa_entrega":
@@ -320,9 +407,21 @@ class LLMAgent:
         if name == "maps":
             return self.geocode.geocode(args.get("query") or "")
         if name == "calcular_orcamento":
-            return self.order_service.quote_order(args)
+            payload = args or {}
+            if self._current_session_id and "session_id" not in payload:
+                payload["session_id"] = self._current_session_id
+            return self.order_service.quote_order(payload)
         if name == "enviar_pedido":
-            return self.order_service.process_order(args.get("JSON") or {})
+            payload = args or {}
+            if self._current_session_id and "session_id" not in payload and "JSON" not in payload:
+                payload["session_id"] = self._current_session_id
+            return self.order_service.process_order(payload)
+        if name == "validar_comprovante_pix":
+            return validate_pix_receipt(
+                media_base64=args.get("media_base64"),
+                mime_type=args.get("mime_type"),
+                texto=args.get("texto"),
+            )
         if name == "cancelar_pedido":
             return self.order_service.cancel_order(args.get("order_id") or "")
         if name == "validar_endereco":
@@ -334,52 +433,56 @@ class LLMAgent:
         return {"error": f"tool_not_found: {name}"}
 
     def run(self, message: str, telefone: str, horario: str, historico: Dict[str, Any]) -> str:
-        base = self.prompt_text
-        prompt = render_atendente_prompt(
-            base,
-            {
-                "telefone": telefone,
-                "horario": horario,
-                "historico": historico or {},
-                "nome_restaurante": settings.restaurant_name,
-            },
-        )
-        messages: List[Dict[str, Any]] = [{"role": "system", "content": prompt}]
-
+        self._current_session_id = telefone
         try:
-            rows = crud.fetch_chat_history(self.db, telefone, limit=20)
-            history_msgs = _history_rows_to_messages(list(reversed(rows)))
-            messages.extend(history_msgs)
-        except Exception:
-            pass
+            base = self.prompt_text
+            prompt = render_atendente_prompt(
+                base,
+                {
+                    "telefone": telefone,
+                    "horario": horario,
+                    "historico": historico or {},
+                    "nome_restaurante": settings.restaurant_name,
+                },
+            )
+            messages: List[Dict[str, Any]] = [{"role": "system", "content": prompt}]
 
-        messages.append({"role": "user", "content": message})
-        tools = self._tools()
+            try:
+                rows = crud.fetch_chat_history(self.db, telefone, limit=20)
+                history_msgs = _history_rows_to_messages(list(reversed(rows)))
+                messages.extend(history_msgs)
+            except Exception:
+                pass
 
-        for _ in range(6):
-            data = _openai_chat(messages, tools=tools, tool_choice="auto")
-            msg = data["choices"][0]["message"]
-            tool_calls = msg.get("tool_calls")
-            if tool_calls:
-                messages.append({"role": "assistant", "tool_calls": tool_calls})
-                for call in tool_calls:
-                    name = call["function"]["name"]
-                    args_str = call["function"].get("arguments") or "{}"
-                    try:
-                        args = json.loads(args_str)
-                    except Exception:
-                        args = {}
-                    result = self._execute_tool(name, args)
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": call["id"],
-                            "content": _json_dumps_safe(result),
-                        }
-                    )
-                continue
-            return msg.get("content") or ""
-        return ""
+            messages.append({"role": "user", "content": message})
+            tools = self._tools()
+
+            for _ in range(6):
+                data = _openai_chat(messages, tools=tools, tool_choice="auto")
+                msg = data["choices"][0]["message"]
+                tool_calls = msg.get("tool_calls")
+                if tool_calls:
+                    messages.append({"role": "assistant", "tool_calls": tool_calls})
+                    for call in tool_calls:
+                        name = call["function"]["name"]
+                        args_str = call["function"].get("arguments") or "{}"
+                        try:
+                            args = json.loads(args_str)
+                        except Exception:
+                            args = {}
+                        result = self._execute_tool(name, args)
+                        messages.append(
+                            {
+                                "role": "tool",
+                                "tool_call_id": call["id"],
+                                "content": _json_dumps_safe(result),
+                            }
+                        )
+                    continue
+                return msg.get("content") or ""
+            return ""
+        finally:
+            self._current_session_id = None
 
     def run_followup(self, last_message: str, telefone: str, horario: str, tipo: str) -> str:
         prompt = render_followup_prompt(self.followup_prompt)
