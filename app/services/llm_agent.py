@@ -232,14 +232,6 @@ class LLMAgent:
             {
                 "type": "function",
                 "function": {
-                    "name": "stages",
-                    "description": "Retorna regras de interpretação para uma etapa específica.",
-                    "parameters": {"type": "object", "properties": {"stage": {"type": "string"}}, "required": ["stage"]},
-                },
-            },
-            {
-                "type": "function",
-                "function": {
                     "name": "cardapio",
                     "description": "Retorna todos os itens do cardápio.",
                     "parameters": {"type": "object", "properties": {}},
@@ -321,8 +313,6 @@ class LLMAgent:
         ]
 
     def _execute_tool(self, name: str, args: Dict[str, Any]) -> Any:
-        if name == "stages":
-            return crud.fetch_stage_rules(self.db, args.get("stage") or "")
         if name == "cardapio":
             return crud.fetch_cardapio(self.db)
         if name == "taxa_entrega":
