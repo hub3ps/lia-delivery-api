@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
@@ -18,6 +19,7 @@ from app.services.order_service import OrderService
 from app.services.order_interpreter import OrderInterpreterService
 from app.services.pix_validator import validate_pix_receipt
 
+logger = logging.getLogger(__name__)
 
 def _strip_markdown_json(text: str) -> str:
     cleaned = text.replace("```json", "").replace("```", "").strip()
@@ -180,6 +182,11 @@ def _history_rows_to_messages(rows: List[Dict[str, Any]]) -> List[Dict[str, str]
             content = payload.get("content")
         if not content:
             continue
+        if not isinstance(content, str):
+            try:
+                content = json.dumps(content, ensure_ascii=False)
+            except Exception:
+                content = str(content)
         if role == "human":
             messages.append({"role": "user", "content": content})
         elif role == "ai":
@@ -200,6 +207,16 @@ def _openai_chat(messages: List[Dict[str, Any]], tools: Optional[List[Dict]] = N
         payload["tool_choice"] = tool_choice
     with httpx.Client(timeout=90) as client:
         resp = client.post(url, headers=headers, json=payload)
+        if resp.status_code >= 400:
+            body = ""
+            try:
+                body = resp.text
+            except Exception:
+                body = ""
+            logger.error(
+                "openai_chat_failed",
+                extra={"status_code": resp.status_code, "body": body[:1000]},
+            )
         resp.raise_for_status()
         return resp.json()
 
