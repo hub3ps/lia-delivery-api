@@ -427,9 +427,29 @@ class LLMAgent:
         if name == "cardapio":
             return crud.fetch_cardapio(self.db)
         if name == "taxa_entrega":
-            return crud.fetch_delivery_fee(self.db, args.get("bairro") or "")
+            result = crud.fetch_delivery_fee(self.db, args.get("bairro") or "")
+            if self._current_session_id and isinstance(result, list) and result:
+                first = result[0] or {}
+                taxa = first.get("taxa_entrega")
+                if taxa is not None:
+                    crud.patch_cart(self.db, self._current_session_id, {"taxa_entrega": float(taxa)})
+            return result
         if name == "maps":
-            return self.geocode.geocode(args.get("query") or "")
+            result = self.geocode.geocode(args.get("query") or "")
+            if self._current_session_id and isinstance(result, dict) and not result.get("error"):
+                current = crud.fetch_cart(self.db, self._current_session_id) or {}
+                endereco_atual = current.get("endereco") if isinstance(current.get("endereco"), dict) else {}
+                endereco = {
+                    **endereco_atual,
+                    "rua": result.get("rua"),
+                    "numero": result.get("numero"),
+                    "bairro": result.get("bairro"),
+                    "cidade": result.get("cidade"),
+                    "estado": result.get("estado"),
+                    "cep": result.get("cep"),
+                }
+                crud.patch_cart(self.db, self._current_session_id, {"endereco": endereco})
+            return result
         if name == "calcular_orcamento":
             payload = args or {}
             if self._current_session_id and "session_id" not in payload:
@@ -453,7 +473,16 @@ class LLMAgent:
         if name == "atualizar_cardapio":
             return self.menu_service.sync_menu()
         if name == "interpretar_pedido":
-            return self.order_interpreter.interpret_to_dict(args.get("texto_pedido") or "")
+            result = self.order_interpreter.interpret_to_dict(args.get("texto_pedido") or "")
+            if self._current_session_id and isinstance(result, dict):
+                itens_validos = result.get("itens_validos")
+                if isinstance(itens_validos, list) and itens_validos:
+                    crud.patch_cart(self.db, self._current_session_id, {"itens": itens_validos})
+                # Armazena pendências para possíveis confirmações futuras
+                pendencias = result.get("itens_nao_encontrados")
+                if isinstance(pendencias, list) and pendencias:
+                    crud.patch_cart(self.db, self._current_session_id, {"pendencias": pendencias})
+            return result
         return {"error": f"tool_not_found: {name}"}
 
     def run(self, message: str, telefone: str, horario: str, historico: Dict[str, Any]) -> str:
