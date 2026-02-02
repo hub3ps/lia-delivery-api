@@ -213,9 +213,16 @@ def _openai_chat(messages: List[Dict[str, Any]], tools: Optional[List[Dict]] = N
                 body = resp.text
             except Exception:
                 body = ""
+            request_id = resp.headers.get("x-request-id") or ""
+            msg = f"openai_chat_failed status={resp.status_code} body={body[:1000]}"
             logger.error(
-                "openai_chat_failed",
-                extra={"status_code": resp.status_code, "body": body[:1000]},
+                msg,
+                extra={
+                    "status_code": resp.status_code,
+                    "body": body[:1000],
+                    "model": settings.openai_model_chat,
+                    "request_id": request_id,
+                },
             )
         resp.raise_for_status()
         return resp.json()

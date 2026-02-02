@@ -22,7 +22,7 @@ class JsonFormatter(logging.Formatter):
         }
         if record.exc_info:
             payload["exc_info"] = self.formatException(record.exc_info)
-        for key in ("trace_id", "message_id", "telefone", "order_id"):
+        for key in ("trace_id", "message_id", "telefone", "order_id", "status_code", "body", "model", "request_id"):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)
         return json.dumps(payload, default=_json_default)
