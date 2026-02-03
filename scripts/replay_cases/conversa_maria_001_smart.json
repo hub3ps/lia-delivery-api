@@ -1,0 +1,18 @@
+{
+  "session_id": "teste_maria_001",
+  "phone": "5547996489767",
+  "instance": "Lia",
+  "initial_message": "Ola boa noite, eu gostaria de 2 X salada e 1 X coracao para a rua lico amaral 110, pagamento no cartao na entrega, tudo bem?",
+  "confirm_pending": "Confirma",
+  "confirm_items": "Confirma",
+  "delivery": {
+    "tipo": "entrega",
+    "endereco": "Rua Lico Amaral 110",
+    "bairro": "Dom Bosco",
+    "complemento": "Casa"
+  },
+  "confirm_address": "Sim",
+  "payment": {
+    "metodo": "Debito"
+  }
+}
