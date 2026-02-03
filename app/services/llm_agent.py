@@ -252,6 +252,64 @@ class LLMAgent:
         self.followup_prompt = followup_prompt
         self.order_interpreter = OrderInterpreterService(db)
         self._current_session_id: str | None = None
+        self._merge_interpret: bool = False
+
+    def _is_simple_confirmation(self, text: str) -> bool:
+        if not text:
+            return False
+        clean = text.strip().lower()
+        if len(clean) > 40:
+            return False
+        tokens = [t for t in re.split(r"\s+", clean) if t]
+        if not tokens:
+            return False
+        allowed = {
+            "sim",
+            "ok",
+            "okay",
+            "confirmo",
+            "confirmar",
+            "confirma",
+            "isso",
+            "isso mesmo",
+            "pode",
+            "pode sim",
+            "pode ser",
+            "pode adicionar",
+            "pode colocar",
+            "pode por",
+            "pode incluir",
+            "certo",
+            "beleza",
+        }
+        # normalize to single string for multi-word matches
+        joined = " ".join(tokens)
+        if joined in allowed:
+            return True
+        # allow single-token confirmations
+        if len(tokens) == 1 and tokens[0] in {"sim", "ok", "beleza", "certo"}:
+            return True
+        return False
+
+    def _build_corrections_text(self, pendencias: list[dict]) -> str:
+        lines: list[str] = []
+        for pend in pendencias:
+            if not isinstance(pend, dict):
+                continue
+            texto_original = pend.get("texto_original") or ""
+            sugestoes = pend.get("sugestoes") if isinstance(pend.get("sugestoes"), list) else []
+            if not sugestoes:
+                continue
+            sugestao = sugestoes[0]
+            qtd = 1
+            match = re.match(r"\s*(\d+)", str(texto_original))
+            if match:
+                try:
+                    qtd = int(match.group(1))
+                except Exception:
+                    qtd = 1
+            lines.append(f"{qtd} {sugestao}")
+        return "\n".join(lines).strip()
 
     def _tools(self) -> List[Dict[str, Any]]:
         return [
@@ -475,19 +533,44 @@ class LLMAgent:
         if name == "interpretar_pedido":
             result = self.order_interpreter.interpret_to_dict(args.get("texto_pedido") or "")
             if self._current_session_id and isinstance(result, dict):
+                current = crud.fetch_cart(self.db, self._current_session_id) or {}
+                patch: Dict[str, Any] = {}
                 itens_validos = result.get("itens_validos")
                 if isinstance(itens_validos, list) and itens_validos:
-                    crud.patch_cart(self.db, self._current_session_id, {"itens": itens_validos})
-                # Armazena pendências para possíveis confirmações futuras
+                    if self._merge_interpret and isinstance(current.get("itens"), list):
+                        merged = list(current.get("itens") or []) + itens_validos
+                        patch["itens"] = merged
+                    else:
+                        patch["itens"] = itens_validos
                 pendencias = result.get("itens_nao_encontrados")
                 if isinstance(pendencias, list) and pendencias:
-                    crud.patch_cart(self.db, self._current_session_id, {"pendencias": pendencias})
+                    patch["pendencias"] = pendencias
+                else:
+                    # limpa pendências se não houver mais itens faltando
+                    if "pendencias" in current:
+                        patch["pendencias"] = []
+                if patch:
+                    crud.patch_cart(self.db, self._current_session_id, patch)
             return result
         return {"error": f"tool_not_found: {name}"}
 
     def run(self, message: str, telefone: str, horario: str, historico: Dict[str, Any]) -> str:
         self._current_session_id = telefone
+        self._merge_interpret = False
         try:
+            # Se houver pendências e o cliente responder apenas confirmando,
+            # transforma em texto de correções para interpretação e merge no carrinho.
+            try:
+                cart = crud.fetch_cart(self.db, telefone) or {}
+                pendencias = cart.get("pendencias") if isinstance(cart, dict) else None
+                if isinstance(pendencias, list) and pendencias and self._is_simple_confirmation(message):
+                    corrections_text = self._build_corrections_text(pendencias)
+                    if corrections_text:
+                        message = corrections_text
+                        self._merge_interpret = True
+            except Exception:
+                pass
+
             base = self.prompt_text
             prompt = render_atendente_prompt(
                 base,
@@ -536,6 +619,7 @@ class LLMAgent:
             return ""
         finally:
             self._current_session_id = None
+            self._merge_interpret = False
 
     def run_followup(self, last_message: str, telefone: str, horario: str, tipo: str) -> str:
         prompt = render_followup_prompt(self.followup_prompt)
