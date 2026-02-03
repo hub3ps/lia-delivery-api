@@ -1,0 +1,28 @@
+{
+  "session_id": "teste_maria_001",
+  "phone": "554799623147",
+  "instance": "Lia",
+  "messages": [
+    {
+      "text": "Ola boa noite, eu gostaria de 2 X salada e 1 X coracao para a rua lico amaral 110, pagamento no cartao na entrega, tudo bem?"
+    },
+    {
+      "text": "Confirma"
+    },
+    {
+      "text": "Entrega"
+    },
+    {
+      "text": "Dom Bosco"
+    },
+    {
+      "text": "Casa"
+    },
+    {
+      "text": "Sim"
+    },
+    {
+      "text": "Debito"
+    }
+  ]
+}
