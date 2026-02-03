@@ -60,8 +60,17 @@ def _print_step(index: int, total: int, text: str) -> None:
     print(f"[{index}/{total}] Enviando: {text}")
 
 
+def _normalize_db_url(value: str) -> str:
+    if not value:
+        return value
+    if value.startswith("postgresql+psycopg://"):
+        return "postgresql://" + value.split("postgresql+psycopg://", 1)[1]
+    return value
+
+
 def _get_db_url(arg_value: str | None) -> str:
-    return (arg_value or os.getenv("DATABASE_URL") or "").strip()
+    raw = (arg_value or os.getenv("DATABASE_URL") or "").strip()
+    return _normalize_db_url(raw)
 
 
 def _fetch_latest_ai_id(conn: psycopg.Connection, session_id: str) -> int | None:
