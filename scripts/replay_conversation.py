@@ -144,6 +144,7 @@ def _smart_next_message(cart: Dict[str, Any], scenario: Dict[str, Any], state: D
 
     payment = scenario.get("payment") if isinstance(scenario.get("payment"), dict) else {}
     metodo_pagamento = payment.get("metodo") or payment.get("pagamento")
+    cartao_tipo = payment.get("cartao_tipo") or payment.get("subtipo")
     troco_para = payment.get("troco_para")
     pix_texto = payment.get("pix_texto")
 
@@ -177,8 +178,21 @@ def _smart_next_message(cart: Dict[str, Any], scenario: Dict[str, Any], state: D
             return confirm_address
 
     if not pagamento and metodo_pagamento:
-        state["sent_pagamento"] = True
-        return metodo_pagamento
+        metodo_norm = _normalize_text(str(metodo_pagamento))
+        if metodo_norm in {"cartao", "cartão"}:
+            if not state.get("sent_pagamento"):
+                state["sent_pagamento"] = True
+                return metodo_pagamento
+            if cartao_tipo and not state.get("sent_cartao_tipo"):
+                state["sent_cartao_tipo"] = True
+                return cartao_tipo
+        else:
+            state["sent_pagamento"] = True
+            return metodo_pagamento
+
+    if pagamento and "cartao" in _normalize_text(str(pagamento)) and cartao_tipo and not state.get("sent_cartao_tipo"):
+        state["sent_cartao_tipo"] = True
+        return cartao_tipo
 
     if pagamento == "dinheiro" and troco_para and not state.get("sent_troco"):
         state["sent_troco"] = True
