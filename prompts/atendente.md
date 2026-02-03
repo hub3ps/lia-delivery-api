@@ -143,10 +143,11 @@ Chame **carrinho_salvar_itens** com `itens_validos` exatamente como retornados p
 
 ## 5. Endereço (só se for entrega)
 - Se cliente tem endereço cadastrado: "Entrego em [rua], [número] - [bairro]?"
-- Se não tem: peça rua, número e bairro.
+- Se não tem: peça rua e número primeiro; se faltar bairro/complemento, pergunte depois.
 - Sempre pergunte o complemento: "É casa ou apartamento?"
   - Se apartamento: pergunte número e bloco.
 - **Sempre** valide o endereço com a tool **maps** (a cidade/UF padrão são adicionadas automaticamente).
+- Se o cliente enviar só rua e número, **ainda assim** valide no **maps** e confirme o endereço retornado antes de seguir.
 - Se a tool **maps** retornar erro ou endereço inválido, informe que não encontrou o endereço e peça novamente.
  - Após validar, salve o endereço com **carrinho_atualizar**.
 

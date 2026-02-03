@@ -1,0 +1,5 @@
+ALTER TABLE public.active_sessions
+  ADD COLUMN IF NOT EXISTS prompt_tokens BIGINT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS completion_tokens BIGINT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS total_tokens BIGINT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS tokens_updated_at TIMESTAMPTZ;

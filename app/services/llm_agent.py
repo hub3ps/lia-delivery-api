@@ -332,6 +332,27 @@ class LLMAgent:
             lines.append(f"{qtd} {sugestao}")
         return "\n".join(lines).strip()
 
+    def _track_usage(self, usage: Any) -> None:
+        if not self._current_session_id:
+            return
+        if not isinstance(usage, dict):
+            return
+        prompt_tokens = usage.get("prompt_tokens") or 0
+        completion_tokens = usage.get("completion_tokens") or 0
+        total_tokens = usage.get("total_tokens") or 0
+        if not any((prompt_tokens, completion_tokens, total_tokens)):
+            return
+        try:
+            crud.increment_session_tokens(
+                self.db,
+                self._current_session_id,
+                int(prompt_tokens),
+                int(completion_tokens),
+                int(total_tokens),
+            )
+        except Exception:
+            logger.warning("token_track_failed", exc_info=True)
+
     def _tools(self) -> List[Dict[str, Any]]:
         return [
             {
@@ -540,11 +561,16 @@ class LLMAgent:
                 payload["session_id"] = self._current_session_id
             return self.order_service.process_order(payload)
         if name == "validar_comprovante_pix":
-            return validate_pix_receipt(
+            result = validate_pix_receipt(
                 media_base64=args.get("media_base64"),
                 mime_type=args.get("mime_type"),
                 texto=args.get("texto"),
+                return_usage=True,
             )
+            usage = result.pop("_usage", None) if isinstance(result, dict) else None
+            if usage:
+                self._track_usage(usage)
+            return result
         if name == "cancelar_pedido":
             return self.order_service.cancel_order(args.get("order_id") or "")
         if name == "validar_endereco":
@@ -637,6 +663,7 @@ class LLMAgent:
 
             for _ in range(6):
                 data = _openai_chat(messages, tools=tools, tool_choice="auto")
+                self._track_usage(data.get("usage"))
                 msg = data["choices"][0]["message"]
                 tool_calls = msg.get("tool_calls")
                 if tool_calls:
@@ -681,6 +708,7 @@ class LLMAgent:
             },
         ]
         data = _openai_chat(messages)
+        self._track_usage(data.get("usage"))
         msg = data["choices"][0]["message"]
         return msg.get("content") or ""
 

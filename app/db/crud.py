@@ -409,6 +409,30 @@ def update_active_session_ai(db, session_id: str, last_message: str) -> None:
     db.commit()
 
 
+def increment_session_tokens(db, session_id: str, prompt_tokens: int, completion_tokens: int, total_tokens: int) -> None:
+    sql = text(
+        """
+        UPDATE public.active_sessions
+        SET prompt_tokens = COALESCE(prompt_tokens, 0) + :prompt_tokens,
+            completion_tokens = COALESCE(completion_tokens, 0) + :completion_tokens,
+            total_tokens = COALESCE(total_tokens, 0) + :total_tokens,
+            tokens_updated_at = now(),
+            updated_at = now()
+        WHERE session_id = :session_id AND status = 'active'
+        """
+    )
+    db.execute(
+        sql,
+        {
+            "session_id": session_id,
+            "prompt_tokens": int(prompt_tokens or 0),
+            "completion_tokens": int(completion_tokens or 0),
+            "total_tokens": int(total_tokens or 0),
+        },
+    )
+    db.commit()
+
+
 def update_active_session_finished(db, session_id: str) -> None:
     sql = text(
         """

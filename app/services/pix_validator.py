@@ -27,7 +27,12 @@ def _basic_heuristic(text: str) -> Dict[str, Any]:
     return {"valid": score >= 2, "reason": "heuristic", "score": score}
 
 
-def validate_pix_receipt(media_base64: str | None, mime_type: str | None = None, texto: str | None = None) -> Dict[str, Any]:
+def validate_pix_receipt(
+    media_base64: str | None,
+    mime_type: str | None = None,
+    texto: str | None = None,
+    return_usage: bool = False,
+) -> Dict[str, Any]:
     if texto and not media_base64:
         return _basic_heuristic(texto)
     if not media_base64:
@@ -69,11 +74,14 @@ def validate_pix_receipt(media_base64: str | None, mime_type: str | None = None,
     except Exception as exc:
         return {"error": "openai_request_failed", "message": str(exc)}
 
+    usage = data.get("usage") if return_usage else None
     content = data.get("choices", [{}])[0].get("message", {}).get("content") or ""
     try:
         clean = _strip_markdown_json(content)
         parsed = json.loads(clean)
         if isinstance(parsed, dict):
+            if usage and isinstance(usage, dict):
+                parsed["_usage"] = usage
             return parsed
     except Exception:
         pass
@@ -81,6 +89,12 @@ def validate_pix_receipt(media_base64: str | None, mime_type: str | None = None,
     # fallback: try to extract "valid" with regex
     match = re.search(r"\btrue\b|\bfalse\b", content.lower())
     if match:
-        return {"valid": match.group(0) == "true", "reason": "parsed_fallback", "raw": content}
+        result = {"valid": match.group(0) == "true", "reason": "parsed_fallback", "raw": content}
+        if usage and isinstance(usage, dict):
+            result["_usage"] = usage
+        return result
 
-    return {"valid": False, "reason": "unparseable", "raw": content}
+    result = {"valid": False, "reason": "unparseable", "raw": content}
+    if usage and isinstance(usage, dict):
+        result["_usage"] = usage
+    return result
