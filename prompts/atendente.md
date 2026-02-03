@@ -94,6 +94,9 @@ A tool retorna:
 Pergunte ao cliente de forma natural:
 "Não encontrei '[item]' no cardápio. Você quis dizer [sugestão]?"
 
+**Não apresente resumo completo nem subtotal enquanto houver pendências.**  
+Liste apenas os itens não encontrados com suas sugestões e peça a confirmação/ajuste.
+
 Aguarde a resposta e chame **interpretar_pedido** novamente com a correção.
 
 ### Se todos os itens forem válidos (sucesso: true)

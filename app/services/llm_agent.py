@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import logging
+import unicodedata
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
@@ -291,6 +292,26 @@ class LLMAgent:
             return True
         return False
 
+    def _normalize_name(self, text: str) -> str:
+        if not text:
+            return ""
+        normalized = unicodedata.normalize("NFKD", str(text))
+        stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        return stripped.lower().strip()
+
+    def _pending_suggestion_names(self, pendencias: list[dict]) -> set[str]:
+        names: set[str] = set()
+        for pend in pendencias:
+            if not isinstance(pend, dict):
+                continue
+            sugestoes = pend.get("sugestoes")
+            if not isinstance(sugestoes, list):
+                continue
+            for sugestao in sugestoes:
+                if isinstance(sugestao, str) and sugestao.strip():
+                    names.add(self._normalize_name(sugestao))
+        return names
+
     def _build_corrections_text(self, pendencias: list[dict]) -> str:
         lines: list[str] = []
         for pend in pendencias:
@@ -537,9 +558,30 @@ class LLMAgent:
                 patch: Dict[str, Any] = {}
                 itens_validos = result.get("itens_validos")
                 if isinstance(itens_validos, list) and itens_validos:
-                    if self._merge_interpret and isinstance(current.get("itens"), list):
-                        merged = list(current.get("itens") or []) + itens_validos
-                        patch["itens"] = merged
+                    if self._merge_interpret:
+                        pendencias_atual = (
+                            current.get("pendencias") if isinstance(current.get("pendencias"), list) else []
+                        )
+                        sugestoes = self._pending_suggestion_names(pendencias_atual)
+                        if sugestoes:
+                            filtrados: list[dict] = []
+                            for item in itens_validos:
+                                if not isinstance(item, dict):
+                                    continue
+                                nome = self._normalize_name(item.get("nome") or "")
+                                if nome in sugestoes:
+                                    filtrados.append(item)
+                        else:
+                            filtrados = [item for item in itens_validos if isinstance(item, dict)]
+                        if filtrados:
+                            if isinstance(current.get("itens"), list):
+                                merged = list(current.get("itens") or []) + filtrados
+                                patch["itens"] = merged
+                            else:
+                                patch["itens"] = filtrados
+                        else:
+                            # Evita duplicação se o LLM reenviar o pedido completo
+                            patch["itens"] = current.get("itens") or []
                     else:
                         patch["itens"] = itens_validos
                 pendencias = result.get("itens_nao_encontrados")
